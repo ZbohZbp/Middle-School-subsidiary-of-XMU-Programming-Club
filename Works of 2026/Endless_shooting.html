@@ -1,0 +1,1531 @@
+<!--
+Endless_shooting
+射击游戏 —— 王乐平
+-->
+
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>无尽射击 · 技能三选一 & 僚机回复</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background: #0b0e1a;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        .game-wrapper {
+            background: #1a1f2f;
+            padding: 20px 20px 25px;
+            border-radius: 32px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+        canvas {
+            display: block;
+            background: #0f1322;
+            border-radius: 20px;
+            box-shadow: inset 0 0 40px rgba(0, 20, 80, 0.6);
+            cursor: crosshair;
+            width: 800px;
+            height: 600px;
+        }
+        .hud {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 16px;
+            padding: 0 8px;
+            color: #b7e1fa;
+            font-weight: 600;
+            text-shadow: 0 0 8px #3f8cff;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .hud-left { display: flex; gap: 16px; font-size: 0.95rem; flex-wrap: wrap; align-items: center; }
+        .hud-right { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .stat-item {
+            background: #1f2a44;
+            padding: 4px 14px;
+            border-radius: 40px;
+            border: 1px solid #3d5a8a;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .level-badge { background: #f7d44a22; border-color: #f7d44a88; color: #f7e05e; }
+        .boss-badge { background: #ff444422; border-color: #ff6666; color: #ff7777; }
+        .energy-badge { background: #3d5a8a44; border-color: #7af0c0; color: #7af0c0; }
+        .skill-btn {
+            background: #3d5a8a;
+            border: 1px solid #7af0c0;
+            padding: 4px 18px;
+            border-radius: 40px;
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.1s;
+            box-shadow: 0 0 15px #7af0c044;
+            font-size: 0.85rem;
+        }
+        .skill-btn:hover { background: #5a7aaa; transform: scale(0.96); }
+        .skill-btn:active { transform: translateY(2px); }
+        .skill-btn.cooldown { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+        .skill-btn .key-hint { color: #f7d44a; font-weight: 300; font-size: 0.75rem; }
+        button {
+            background: #2f3b5c;
+            border: none;
+            padding: 8px 22px;
+            border-radius: 40px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #f0faff;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 0 #141b2b;
+            cursor: pointer;
+            transition: 0.08s linear;
+            border: 1px solid #5b78b0;
+        }
+        button:hover { background: #3d4d77; transform: scale(0.97); }
+        button:active { transform: translateY(4px); box-shadow: 0 0px 0 #141b2b; }
+        .status-badge {
+            background: #1f2a44;
+            padding: 6px 18px;
+            border-radius: 60px;
+            border: 1px solid #4d6b9c;
+            font-size: 0.9rem;
+        }
+        /* 技能选择遮罩 - 三选一 */
+        .skill-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: calc(100% - 40px);
+            height: calc(100% - 80px);
+            background: rgba(10, 14, 30, 0.88);
+            backdrop-filter: blur(8px);
+            border-radius: 24px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            padding: 20px;
+            border: 1px solid #f7d44a66;
+            box-shadow: 0 0 80px rgba(247, 212, 74, 0.15);
+        }
+        .skill-overlay.active { display: flex; }
+        .skill-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #f7e05e;
+            text-shadow: 0 0 30px #f7d44a66;
+            margin-bottom: 12px;
+        }
+        .skill-hint {
+            color: #aac3e0;
+            font-size: 1rem;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+        .skill-grid {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .skill-card {
+            background: #1f2a44dd;
+            border: 2px solid #4d7aaa;
+            border-radius: 20px;
+            padding: 24px 28px;
+            width: 190px;
+            cursor: pointer;
+            transition: 0.15s;
+            text-align: center;
+            color: #d4ecff;
+            box-shadow: 0 8px 0 #0a1120;
+            position: relative;
+        }
+        .skill-card:hover { transform: translateY(-6px); border-color: #f7d44a; box-shadow: 0 12px 0 #0a1120, 0 0 30px #f7d44a33; }
+        .skill-card .key-num {
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            background: #f7d44a;
+            color: #1a1f2f;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            box-shadow: 0 0 15px #f7d44a66;
+        }
+        .skill-card .icon { font-size: 2.8rem; display: block; margin-bottom: 6px; }
+        .skill-card .name { font-weight: 700; font-size: 1.1rem; color: #fff; }
+        .skill-card .desc { font-size: 0.8rem; margin-top: 4px; color: #aac3e0; }
+        /* 排行榜 */
+        .rank-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: calc(100% - 40px);
+            height: calc(100% - 80px);
+            background: rgba(8, 12, 28, 0.88);
+            backdrop-filter: blur(8px);
+            border-radius: 24px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            padding: 30px;
+            border: 1px solid #f7d44a66;
+            box-shadow: 0 0 80px rgba(247, 212, 74, 0.15);
+        }
+        .rank-overlay.active { display: flex; }
+        .rank-title { font-size: 2.5rem; font-weight: 700; color: #f7e05e; text-shadow: 0 0 40px #f7d44a55; margin-bottom: 20px; }
+        .rank-list { width: 80%; max-height: 300px; overflow-y: auto; background: #141c30aa; border-radius: 16px; padding: 12px 20px; border: 1px solid #3d5a8a; }
+        .rank-item { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #2a3a5a; color: #c8ddff; font-size: 1.1rem; }
+        .rank-item:last-child { border-bottom: none; }
+        .rank-item .pos { color: #f7d44a; font-weight: 700; width: 40px; }
+        .rank-item .score { color: #7af0c0; font-weight: 600; }
+        .rank-close-btn { margin-top: 20px; background: #f7d44a; color: #1a1f2f; border: none; padding: 10px 40px; border-radius: 40px; font-weight: 700; font-size: 1.1rem; cursor: pointer; box-shadow: 0 4px 0 #a08030; }
+        .rank-close-btn:hover { background: #ffe066; transform: scale(0.97); }
+        .rank-close-btn:active { transform: translateY(4px); box-shadow: 0 0px 0 #a08030; }
+        @media (max-width: 840px) {
+            canvas { width: 100%; height: auto; aspect-ratio: 800/600; }
+            .skill-grid { gap: 14px; }
+            .skill-card { width: 140px; padding: 16px; }
+            .skill-card .icon { font-size: 2rem; }
+            .rank-list { width: 95%; }
+            .hud-left { gap: 8px; font-size: 0.8rem; }
+            .skill-btn { padding: 2px 12px; font-size: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="game-wrapper">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <!-- 技能选择遮罩 三选一 -->
+    <div class="skill-overlay" id="skillOverlay">
+        <div class="skill-title">⬆ 选择技能 ⬆</div>
+        <div class="skill-hint">按 <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> 快速选择</div>
+        <div class="skill-grid" id="skillGrid"></div>
+    </div>
+
+    <!-- 排行榜 -->
+    <div class="rank-overlay" id="rankOverlay">
+        <div class="rank-title">🏆 排行榜</div>
+        <div class="rank-list" id="rankList"></div>
+        <button class="rank-close-btn" id="rankCloseBtn">✕ 关闭</button>
+    </div>
+
+    <div class="hud">
+        <div class="hud-left">
+            <span class="stat-item">❤️ <span id="livesDisplay">20</span></span>
+            <span class="stat-item energy-badge">⚡ <span id="energyDisplay">100</span></span>
+            <span class="stat-item">⭐ <span id="scoreDisplay">0</span></span>
+            <span class="stat-item">📊 <span id="expDisplay">0</span>/<span id="expNextDisplay">10</span></span>
+            <span class="stat-item level-badge">⬆ Lv.<span id="levelDisplay">1</span></span>
+            <span class="stat-item">🛡️ <span id="wingmanDisplay">0</span></span>
+            <span class="stat-item boss-badge" id="bossIndicator">👾 Boss: --</span>
+        </div>
+        <div class="hud-right">
+            <button class="skill-btn" id="shieldBtn">🛡️ 护罩 <span class="key-hint">[Z]</span></button>
+            <button class="skill-btn" id="slowBtn">🐢 缓速 <span class="key-hint">[X]</span></button>
+            <span class="status-badge" id="gameStateBadge">▶ 进行中</span>
+            <button id="rankButton">🏅 排行</button>
+            <button id="restartButton">↺ 重启</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // HUD
+        const livesSpan = document.getElementById('livesDisplay');
+        const energySpan = document.getElementById('energyDisplay');
+        const scoreSpan = document.getElementById('scoreDisplay');
+        const expSpan = document.getElementById('expDisplay');
+        const expNextSpan = document.getElementById('expNextDisplay');
+        const levelSpan = document.getElementById('levelDisplay');
+        const wingmanSpan = document.getElementById('wingmanDisplay');
+        const bossIndicator = document.getElementById('bossIndicator');
+        const stateBadge = document.getElementById('gameStateBadge');
+        const skillOverlay = document.getElementById('skillOverlay');
+        const skillGrid = document.getElementById('skillGrid');
+        const rankOverlay = document.getElementById('rankOverlay');
+        const rankList = document.getElementById('rankList');
+        const shieldBtn = document.getElementById('shieldBtn');
+        const slowBtn = document.getElementById('slowBtn');
+
+        const W = 800, H = 600;
+
+        // ===== 排行榜 =====
+        const STORAGE_KEY = 'shooter_rank_v5';
+        function loadRank() {
+            try { const data = localStorage.getItem(STORAGE_KEY); return data ? JSON.parse(data) : []; } catch { return []; }
+        }
+        function saveRank(rank) { localStorage.setItem(STORAGE_KEY, JSON.stringify(rank)); }
+        function addScoreToRank(score) {
+            const rank = loadRank();
+            rank.push({ score: score, date: new Date().toLocaleDateString() });
+            rank.sort((a, b) => b.score - a.score);
+            if (rank.length > 20) rank.length = 20;
+            saveRank(rank);
+            return rank;
+        }
+        function renderRank() {
+            const rank = loadRank();
+            rankList.innerHTML = '';
+            if (rank.length === 0) {
+                rankList.innerHTML = '<div style="color:#888;text-align:center;padding:20px;">暂无记录，快去挑战吧！</div>';
+                return;
+            }
+            rank.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'rank-item';
+                div.innerHTML = `<span class="pos">#${idx+1}</span><span class="name">🏅 玩家</span><span class="score">${item.score}</span>`;
+                rankList.appendChild(div);
+            });
+        }
+
+        // ===== 所有可选技能池 =====
+        const ALL_SKILLS = [
+            { id: 'wingman', icon: '✈️', name: '僚机', desc: '增加一架生命值5的僚机 (最多3架)' },
+            { id: 'heal', icon: '💚', name: '生命强化', desc: '永久 +5 最大生命值并回复满血' },
+            { id: 'blades', icon: '🌀', name: '飞镖护体', desc: '增加2枚旋转飞镖 (伤害=本体×0.8)' },
+            { id: 'damageUp', icon: '⚡', name: '攻击强化', desc: '攻击力 +1' },
+            { id: 'speedUp', icon: '💨', name: '移速强化', desc: '移动速度 +0.6' },
+            { id: 'fireRateUp', icon: '🔥', name: '射速强化', desc: '射击间隔缩短' },
+            { id: 'energyBoost', icon: '🔋', name: '能量上限', desc: '能量上限 +20' },
+        ];
+
+        // ===== 游戏状态 =====
+        let game = {
+            player: {
+                x: 400, y: 520, w: 32, h: 32,
+                speed: 5, lives: 20, maxLives: 20,
+                invincible: 0, shootCooldown: 0, shootDelay: 12,
+                bulletSpeed: -8, bulletSize: 8, damage: 1,
+            },
+            bullets: [],
+            enemies: [],
+            enemyBullets: [],
+            wingmen: [],
+            orbitingBlades: [],
+            score: 0,
+            exp: 0,
+            level: 1,
+            expToNext: 10,
+            gameOver: false,
+            frame: 0,
+            enemySpawnTimer: 0,
+            enemySpawnInterval: 35,
+            maxEnemies: 14,
+            upgradeLevel: { speed: 0, fireRate: 0, maxLives: 0, damage: 0 },
+            pendingSkill: false,
+            hasWingman: false,
+            wingmanHealth: 5,
+            hasBlades: false,
+            // Boss
+            boss: null,
+            bossActive: false,
+            enemiesKilled: 0,
+            enemiesPerBoss: 25,
+            bossDefeated: false,
+            // 怪物潮
+            waveActive: false,
+            waveEnemiesRemaining: 0,
+            waveSpawnTimer: 0,
+            waveSpawnInterval: 10,
+            waveTotal: 0,
+            // 能量
+            energy: 100,
+            maxEnergy: 100,
+            energyRegen: 0.1,
+            // 主动技能
+            shieldActive: false,
+            shieldTimer: 0,
+            shieldDuration: 120,
+            shieldCooldown: 0,
+            shieldCooldownMax: 300,
+            shieldHp: 20,
+            shieldMaxHp: 20,
+            shieldEnergyCost: 30,
+            slowActive: false,
+            slowTimer: 0,
+            slowDuration: 180,
+            slowCooldown: 0,
+            slowCooldownMax: 480,
+            slowEnergyCost: 25,
+            slowFactor: 0.4,
+            // 僚机回复计时器
+            wingmanHealTimer: 0,
+            wingmanHealInterval: 180, // 3秒 = 180帧 (60fps)
+        };
+
+        // ===== 重置 =====
+        function resetGame() {
+            game.player = {
+                x: 400, y: 520, w: 32, h: 32,
+                speed: 5, lives: 20, maxLives: 20,
+                invincible: 0, shootCooldown: 0, shootDelay: 12,
+                bulletSpeed: -8, bulletSize: 8, damage: 1,
+            };
+            game.bullets = [];
+            game.enemies = [];
+            game.enemyBullets = [];
+            game.wingmen = [];
+            game.orbitingBlades = [];
+            game.score = 0;
+            game.exp = 0;
+            game.level = 1;
+            game.expToNext = 10;
+            game.gameOver = false;
+            game.frame = 0;
+            game.enemySpawnTimer = 0;
+            game.enemySpawnInterval = 35;
+            game.maxEnemies = 14;
+            game.upgradeLevel = { speed: 0, fireRate: 0, maxLives: 0, damage: 0 };
+            game.pendingSkill = false;
+            game.hasWingman = false;
+            game.wingmanHealth = 5;
+            game.hasBlades = false;
+            game.boss = null;
+            game.bossActive = false;
+            game.enemiesKilled = 0;
+            game.enemiesPerBoss = 25;
+            game.bossDefeated = false;
+            game.waveActive = false;
+            game.waveEnemiesRemaining = 0;
+            game.waveSpawnTimer = 0;
+            game.waveTotal = 0;
+            game.energy = 100;
+            game.maxEnergy = 100;
+            game.energyRegen = 0.1;
+            game.shieldActive = false;
+            game.shieldTimer = 0;
+            game.shieldCooldown = 0;
+            game.shieldHp = 20;
+            game.shieldMaxHp = 20;
+            game.shieldEnergyCost = 30;
+            game.slowActive = false;
+            game.slowTimer = 0;
+            game.slowCooldown = 0;
+            game.slowDuration = 180;
+            game.slowCooldownMax = 480;
+            game.slowEnergyCost = 25;
+            game.slowFactor = 0.4;
+            game.wingmanHealTimer = 0;
+            game.wingmanHealInterval = 180;
+            applyUpgrades();
+            updateHUD();
+            stateBadge.textContent = '▶ 进行中';
+            stateBadge.style.borderColor = '#4d6b9c';
+            skillOverlay.classList.remove('active');
+            rankOverlay.classList.remove('active');
+            bossIndicator.textContent = '👾 Boss: --';
+            shieldBtn.classList.remove('cooldown');
+            slowBtn.classList.remove('cooldown');
+        }
+
+        // ===== 应用升级 =====
+        function applyUpgrades() {
+            const p = game.player;
+            const u = game.upgradeLevel;
+            p.speed = 5 + u.speed * 0.6;
+            p.shootDelay = Math.max(5, 12 - u.fireRate * 1.2);
+            p.maxLives = 20 + u.maxLives;
+            p.damage = Math.floor(1 + u.damage * 0.5);
+            if (p.damage < 1) p.damage = 1;
+            p.bulletSize = 8 + Math.floor(u.damage * 0.5);
+            if (p.lives > p.maxLives) p.lives = p.maxLives;
+            for (const blade of game.orbitingBlades) {
+                blade.damage = Math.max(1, Math.floor(p.damage * 0.8));
+            }
+        }
+
+        // ===== 经验与升级 (每3级一次技能选择) =====
+        function gainExp(amount) {
+            if (game.gameOver || game.pendingSkill) return;
+            game.exp += amount;
+            while (game.exp >= game.expToNext) {
+                game.exp -= game.expToNext;
+                game.level++;
+                game.expToNext = Math.floor(game.expToNext * 1.4) + 2;
+                // 每3级触发一次技能选择 (第3, 6, 9, 12...级)
+                if (game.level % 3 === 0) {
+                    game.pendingSkill = true;
+                    showSkillSelection();
+                    return;
+                }
+                // 普通升级：属性提升
+                performNormalUpgrade();
+            }
+            updateHUD();
+        }
+
+        function performNormalUpgrade() {
+            const types = ['speed', 'fireRate', 'maxLives', 'damage'];
+            const choice = types[Math.floor(Math.random() * types.length)];
+            game.upgradeLevel[choice] = (game.upgradeLevel[choice] || 0) + 1;
+            applyUpgrades();
+            game.player.lives = Math.min(game.player.lives + 1, game.player.maxLives);
+            stateBadge.textContent = `⬆ +${choice}`;
+            stateBadge.style.borderColor = '#f7d44a';
+            setTimeout(() => {
+                if (!game.gameOver && !game.pendingSkill) {
+                    stateBadge.textContent = '▶ 进行中';
+                    stateBadge.style.borderColor = '#4d6b9c';
+                }
+            }, 1000);
+            updateHUD();
+        }
+
+        // ===== 技能选择 - 三选一 =====
+        function showSkillSelection() {
+            skillOverlay.classList.add('active');
+            renderSkillOptions();
+        }
+
+        function renderSkillOptions() {
+            const shuffled = [...ALL_SKILLS];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            const selected = shuffled.slice(0, 3);
+            while (selected.length < 3) {
+                selected.push(ALL_SKILLS[selected.length % ALL_SKILLS.length]);
+            }
+
+            skillGrid.innerHTML = '';
+            selected.forEach((skill, index) => {
+                const card = document.createElement('div');
+                card.className = 'skill-card';
+                card.dataset.skillId = skill.id;
+                card.innerHTML = `
+                    <span class="key-num">${index + 1}</span>
+                    <span class="icon">${skill.icon}</span>
+                    <div class="name">${skill.name}</div>
+                    <div class="desc">${skill.desc}</div>
+                `;
+                card.addEventListener('click', () => selectSkill(skill.id));
+                skillGrid.appendChild(card);
+            });
+        }
+
+        function selectSkill(skillId) {
+            if (!game.pendingSkill) return;
+            game.pendingSkill = false;
+            skillOverlay.classList.remove('active');
+
+            switch(skillId) {
+                case 'wingman': addWingman(); break;
+                case 'heal': healBoost(); break;
+                case 'blades': addBlades(); break;
+                case 'damageUp': game.upgradeLevel.damage = (game.upgradeLevel.damage || 0) + 1; applyUpgrades(); break;
+                case 'speedUp': game.upgradeLevel.speed = (game.upgradeLevel.speed || 0) + 1; applyUpgrades(); break;
+                case 'fireRateUp': game.upgradeLevel.fireRate = (game.upgradeLevel.fireRate || 0) + 1; applyUpgrades(); break;
+                case 'energyBoost': game.maxEnergy += 20; game.energy = Math.min(game.energy + 20, game.maxEnergy); break;
+            }
+            game.player.lives = Math.min(game.player.lives + 1, game.player.maxLives);
+            stateBadge.textContent = '▶ 进行中';
+            stateBadge.style.borderColor = '#4d6b9c';
+            updateHUD();
+        }
+
+        function addWingman() {
+            if (game.wingmen.length >= 3) return;
+            const p = game.player;
+            const offset = game.wingmen.length * 30 - 30;
+            game.wingmen.push({
+                x: p.x - 20 + offset, y: p.y + 20,
+                w: 20, h: 20, hp: 5, maxHp: 5,
+                targetX: p.x - 20 + offset, targetY: p.y + 20,
+            });
+            game.hasWingman = true;
+        }
+
+        function healBoost() {
+            game.player.maxLives += 5;
+            game.player.lives = game.player.maxLives;
+            applyUpgrades();
+        }
+
+        function addBlades() {
+            const count = 2;
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2 + game.orbitingBlades.length * 0.5;
+                game.orbitingBlades.push({
+                    x: 0, y: 0,
+                    radius: 50 + game.orbitingBlades.length * 4,
+                    angle: angle,
+                    speed: 0.025 + game.orbitingBlades.length * 0.001,
+                    damage: Math.max(1, Math.floor(game.player.damage * 0.8)),
+                    size: 12,
+                    attackCooldown: 0,
+                    attackInterval: 15,
+                });
+            }
+            game.hasBlades = true;
+        }
+
+        // ===== HUD =====
+        function updateHUD() {
+            livesSpan.textContent = game.player.lives;
+            energySpan.textContent = Math.floor(game.energy);
+            scoreSpan.textContent = game.score;
+            expSpan.textContent = game.exp;
+            expNextSpan.textContent = game.expToNext;
+            levelSpan.textContent = game.level;
+            wingmanSpan.textContent = game.wingmen.length;
+            if (game.bossActive && game.boss) {
+                bossIndicator.textContent = `👾 Boss: ${game.boss.hp}/${game.boss.maxHp}`;
+            } else if (game.waveActive) {
+                bossIndicator.textContent = `🌊 怪物潮: ${game.waveEnemiesRemaining}`;
+            } else {
+                bossIndicator.textContent = `👾 Boss: --`;
+            }
+            if (game.gameOver) {
+                stateBadge.textContent = '💀 失败';
+                stateBadge.style.borderColor = '#e35454';
+            }
+            if (game.shieldCooldown > 0 || game.shieldActive || game.energy < game.shieldEnergyCost) {
+                shieldBtn.classList.add('cooldown');
+            } else {
+                shieldBtn.classList.remove('cooldown');
+            }
+            if (game.slowCooldown > 0 || game.slowActive || game.energy < game.slowEnergyCost) {
+                slowBtn.classList.add('cooldown');
+            } else {
+                slowBtn.classList.remove('cooldown');
+            }
+        }
+
+        // ===== 碰撞 =====
+        function rectCollide(r1, r2) {
+            return r1.x < r2.x + r2.w && r1.x + r1.w > r2.x &&
+                   r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
+        }
+        function dist(x1,y1,x2,y2) { return Math.hypot(x2-x1, y2-y1); }
+
+        // ===== 生成敌人 =====
+        function createEnemy() {
+            const size = 24 + Math.floor(Math.random() * 14);
+            const x = 20 + Math.random() * (W - 40 - size);
+            const y = -size - 10;
+            const lv = game.level;
+            const speed = 1.0 + Math.random() * 1.8 + lv * 0.08;
+            const hp = Math.floor(Math.random() * 2) + 1 + Math.floor(lv / 3);
+            const expValue = 3 + Math.floor(hp * 1.5) + Math.floor(lv / 2);
+            return {
+                x, y, w: size, h: size,
+                speed: Math.min(speed, 5.0),
+                hp: hp, maxHp: hp,
+                color: `hsl(${210 + Math.random() * 50}, 75%, 55%)`,
+                shootTimer: 0,
+                shootInterval: Math.max(20, 35 + Math.floor(Math.random() * 40) - Math.floor(lv * 0.5)),
+                expValue: expValue,
+                showStats: true,
+                originalSpeed: Math.min(speed, 5.0),
+                fromWave: false,
+            };
+        }
+
+        function spawnEnemy() {
+            if (game.gameOver || game.pendingSkill) return;
+            if (game.enemies.length >= game.maxEnemies) return;
+            if (game.bossActive) return;
+            if (game.waveActive) {
+                if (game.waveEnemiesRemaining <= 0) {
+                    game.waveActive = false;
+                    return;
+                }
+                const e = createEnemy();
+                e.fromWave = true;
+                e.color = `hsl(${320 + Math.random() * 40}, 80%, 55%)`;
+                game.enemies.push(e);
+                game.waveEnemiesRemaining--;
+                return;
+            }
+            const e = createEnemy();
+            game.enemies.push(e);
+        }
+
+        function triggerWave() {
+            if (game.waveActive) return;
+            const count = 8 + Math.floor(game.level * 1.5);
+            game.waveActive = true;
+            game.waveEnemiesRemaining = count;
+            game.waveTotal = count;
+            bossIndicator.textContent = `🌊 怪物潮: ${count}`;
+            for (let i = 0; i < Math.min(4, count); i++) {
+                spawnEnemy();
+            }
+        }
+
+        function spawnBoss() {
+            if (game.bossActive) return;
+            if (game.waveActive) return;
+            const lv = game.level;
+            const size = 70 + Math.floor(lv * 2);
+            const hp = 40 + lv * 8 + Math.floor(Math.random() * 20);
+            game.boss = {
+                x: W/2 - size/2,
+                y: -size - 20,
+                w: size,
+                h: size,
+                hp: hp,
+                maxHp: hp,
+                speed: 0.8 + lv * 0.06,
+                phase: 0,
+                shootTimer: 0,
+                shootInterval: Math.max(15, 30 - Math.floor(lv * 0.3)),
+                spawnTime: game.frame,
+                moveDir: 1,
+                expValue: 30 + lv * 5,
+                skillTimer: 0,
+                skillInterval: 120,
+                isCharging: false,
+                chargeTimer: 0,
+                originalSpeed: 0.8 + lv * 0.06,
+            };
+            game.bossActive = true;
+            game.bossDefeated = false;
+            bossIndicator.textContent = `👾 Boss: ${hp}/${hp}`;
+            game.enemies = [];
+        }
+
+        function bossUseSkill(boss) {
+            if (!boss || !game.bossActive) return;
+            const skills = ['spread', 'charge', 'ring'];
+            const skill = skills[Math.floor(Math.random() * skills.length)];
+            switch(skill) {
+                case 'spread':
+                    for (let i = 0; i < 8 + Math.floor(game.level / 2); i++) {
+                        const angle = (i / (8 + Math.floor(game.level / 2))) * Math.PI * 2 + game.frame * 0.02;
+                        const speed = 2.0 + game.level * 0.1;
+                        game.enemyBullets.push({
+                            x: boss.x + boss.w/2 - 5,
+                            y: boss.y + boss.h/2 - 5,
+                            w: 10, h: 10,
+                            speed: speed,
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            isBossBullet: true,
+                            originalSpeed: speed,
+                            originalVx: Math.cos(angle) * speed,
+                            originalVy: Math.sin(angle) * speed,
+                        });
+                    }
+                    break;
+                case 'charge':
+                    boss.isCharging = true;
+                    boss.chargeTimer = 30;
+                    break;
+                case 'ring':
+                    for (let i = 0; i < 12; i++) {
+                        const angle = (i / 12) * Math.PI * 2 + game.frame * 0.03;
+                        const speed = 1.5 + game.level * 0.08;
+                        game.enemyBullets.push({
+                            x: boss.x + boss.w/2 - 5,
+                            y: boss.y + boss.h/2 - 5,
+                            w: 8, h: 8,
+                            speed: speed,
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            isBossBullet: true,
+                            originalSpeed: speed,
+                            originalVx: Math.cos(angle) * speed,
+                            originalVy: Math.sin(angle) * speed,
+                        });
+                    }
+                    break;
+            }
+        }
+
+        // ===== 主动技能 =====
+        function activateShield() {
+            if (game.shieldActive) return;
+            if (game.shieldCooldown > 0) return;
+            if (game.energy < game.shieldEnergyCost) return;
+            if (game.gameOver) return;
+            game.energy -= game.shieldEnergyCost;
+            game.shieldActive = true;
+            game.shieldTimer = game.shieldDuration;
+            game.shieldHp = game.shieldMaxHp;
+            game.shieldCooldown = game.shieldCooldownMax;
+            updateHUD();
+        }
+
+        function activateSlow() {
+            if (game.slowActive) return;
+            if (game.slowCooldown > 0) return;
+            if (game.energy < game.slowEnergyCost) return;
+            if (game.gameOver) return;
+            game.energy -= game.slowEnergyCost;
+            game.slowActive = true;
+            game.slowTimer = game.slowDuration;
+            game.slowCooldown = game.slowCooldownMax;
+            applySlow(true);
+            updateHUD();
+        }
+
+        function applySlow(enable) {
+            const factor = enable ? game.slowFactor : 1.0;
+            for (const e of game.enemies) {
+                e.speed = e.originalSpeed * factor;
+            }
+            if (game.boss) {
+                game.boss.speed = game.boss.originalSpeed * factor;
+            }
+            for (const eb of game.enemyBullets) {
+                if (eb.originalSpeed === undefined) {
+                    eb.originalSpeed = eb.speed || 3;
+                }
+                eb.speed = eb.originalSpeed * factor;
+                if (eb.vx !== undefined && eb.vy !== undefined) {
+                    const origVx = eb.originalVx || eb.vx;
+                    const origVy = eb.originalVy || eb.vy;
+                    eb.originalVx = origVx;
+                    eb.originalVy = origVy;
+                    eb.vx = origVx * factor;
+                    eb.vy = origVy * factor;
+                }
+            }
+        }
+
+        // ===== 玩家受伤 =====
+        function playerTakeDamage() {
+            const p = game.player;
+            if (p.invincible > 0) return false;
+            if (game.shieldActive) {
+                game.shieldHp -= 1;
+                if (game.shieldHp <= 0) {
+                    game.shieldActive = false;
+                    game.shieldHp = 0;
+                }
+                updateHUD();
+                return false;
+            }
+            p.lives--;
+            p.invincible = 40;
+            if (p.lives <= 0) {
+                game.gameOver = true;
+                addScoreToRank(game.score);
+                renderRank();
+                updateHUD();
+                return true;
+            }
+            updateHUD();
+            return false;
+        }
+
+        function gainEnergyOnKill() {
+            game.energy = Math.min(game.maxEnergy, game.energy + 2);
+        }
+
+        // ===== 僚机回复 =====
+        function healWingmen() {
+            for (const wm of game.wingmen) {
+                if (wm.hp < wm.maxHp) {
+                    wm.hp = Math.min(wm.maxHp, wm.hp + 1);
+                }
+            }
+        }
+
+        // ===== 更新 =====
+        function update() {
+            if (game.gameOver || game.pendingSkill) return;
+
+            const p = game.player;
+            game.frame++;
+
+            // 能量恢复
+            game.energy = Math.min(game.maxEnergy, game.energy + game.energyRegen);
+
+            // 护罩计时
+            if (game.shieldActive) {
+                game.shieldTimer--;
+                if (game.shieldTimer <= 0 || game.shieldHp <= 0) {
+                    game.shieldActive = false;
+                    game.shieldHp = 0;
+                }
+            }
+            if (game.shieldCooldown > 0) {
+                game.shieldCooldown--;
+            }
+
+            // 缓速计时
+            if (game.slowActive) {
+                game.slowTimer--;
+                if (game.slowTimer <= 0) {
+                    game.slowActive = false;
+                    applySlow(false);
+                }
+            }
+            if (game.slowCooldown > 0) {
+                game.slowCooldown--;
+            }
+
+            // 僚机每3秒回复1滴血
+            if (game.wingmen.length > 0) {
+                game.wingmanHealTimer++;
+                if (game.wingmanHealTimer >= game.wingmanHealInterval) {
+                    game.wingmanHealTimer = 0;
+                    healWingmen();
+                }
+            }
+
+            if (p.invincible > 0) p.invincible--;
+            if (p.shootCooldown > 0) p.shootCooldown--;
+
+            // 移动
+            let dx = 0, dy = 0;
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) dx -= 1;
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) dx += 1;
+            if (keys['ArrowUp'] || keys['w'] || keys['W']) dy -= 1;
+            if (keys['ArrowDown'] || keys['s'] || keys['S']) dy += 1;
+            if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+            p.x += dx * p.speed;
+            p.y += dy * p.speed;
+            p.x = Math.max(0, Math.min(W - p.w, p.x));
+            p.y = Math.max(0, Math.min(H - p.h, p.y));
+
+            if (keys[' '] || keys['Space']) playerShoot();
+
+            // 怪物潮触发
+            if (game.bossActive && !game.waveActive && game.frame % 180 === 0 && Math.random() < 0.3) {
+                triggerWave();
+            }
+
+            // 生成逻辑
+            if (!game.bossActive && !game.waveActive) {
+                game.enemySpawnTimer++;
+                if (game.enemySpawnTimer >= game.enemySpawnInterval) {
+                    game.enemySpawnTimer = 0;
+                    spawnEnemy();
+                    game.enemySpawnInterval = Math.max(16, 35 - Math.floor(game.level * 0.8));
+                }
+            } else if (game.waveActive) {
+                game.waveSpawnTimer++;
+                if (game.waveSpawnTimer >= game.waveSpawnInterval) {
+                    game.waveSpawnTimer = 0;
+                    spawnEnemy();
+                }
+            }
+
+            // 更新子弹
+            for (let i = game.bullets.length - 1; i >= 0; i--) {
+                const b = game.bullets[i];
+                b.y += b.speed;
+                if (b.y + b.h < 0 || b.y > H) game.bullets.splice(i, 1);
+            }
+            for (let i = game.enemyBullets.length - 1; i >= 0; i--) {
+                const eb = game.enemyBullets[i];
+                if (eb.vx !== undefined) {
+                    eb.x += eb.vx || 0;
+                    eb.y += eb.vy || eb.speed;
+                } else {
+                    eb.y += eb.speed;
+                }
+                if (eb.x < -20 || eb.x > W+20 || eb.y > H+20 || eb.y < -20) {
+                    game.enemyBullets.splice(i, 1);
+                }
+            }
+
+            // 僚机
+            for (const wm of game.wingmen) {
+                wm.targetX = p.x - 20 + (game.wingmen.indexOf(wm) * 30 - 15);
+                wm.targetY = p.y + 20;
+                wm.x += (wm.targetX - wm.x) * 0.1;
+                wm.y += (wm.targetY - wm.y) * 0.1;
+                if (game.frame % 20 === 0) {
+                    game.bullets.push({
+                        x: wm.x + wm.w/2 - 4,
+                        y: wm.y - 6,
+                        w: 6, h: 14,
+                        speed: -7,
+                        damage: 1,
+                    });
+                }
+            }
+
+            // 飞镖
+            for (const blade of game.orbitingBlades) {
+                blade.angle += blade.speed;
+                blade.x = p.x + p.w/2 + Math.cos(blade.angle) * blade.radius;
+                blade.y = p.y + p.h/2 + Math.sin(blade.angle) * blade.radius;
+                blade.damage = Math.max(1, Math.floor(p.damage * 0.8));
+                if (blade.attackCooldown > 0) blade.attackCooldown--;
+            }
+
+            // Boss 逻辑
+            if (game.bossActive && game.boss) {
+                const boss = game.boss;
+                if (boss.isCharging) {
+                    boss.chargeTimer--;
+                    const dx2 = p.x - boss.x - boss.w/2;
+                    const dy2 = p.y - boss.y - boss.h/2;
+                    const dist2 = Math.hypot(dx2, dy2);
+                    if (dist2 > 0) {
+                        boss.x += (dx2 / dist2) * 4;
+                        boss.y += (dy2 / dist2) * 4;
+                    }
+                    if (boss.chargeTimer <= 0 || dist2 < 50) {
+                        boss.isCharging = false;
+                    }
+                } else {
+                    boss.x += Math.sin(game.frame * 0.02) * 1.2;
+                    boss.y += Math.min(boss.speed, 1.5);
+                }
+                boss.x = Math.max(10, Math.min(W - boss.w - 10, boss.x));
+                if (boss.y > 80) boss.y = 80;
+
+                boss.skillTimer++;
+                if (boss.skillTimer >= boss.skillInterval) {
+                    boss.skillTimer = 0;
+                    bossUseSkill(boss);
+                }
+
+                boss.shootTimer++;
+                if (boss.shootTimer >= boss.shootInterval) {
+                    boss.shootTimer = 0;
+                    bossShoot(boss);
+                }
+
+                if (p.invincible === 0 && rectCollide(p, boss)) {
+                    const over = playerTakeDamage();
+                    if (over) return;
+                }
+
+                for (let i = game.bullets.length - 1; i >= 0; i--) {
+                    const b = game.bullets[i];
+                    if (rectCollide(b, boss)) {
+                        boss.hp -= b.damage || 1;
+                        game.bullets.splice(i, 1);
+                        if (boss.hp <= 0) {
+                            game.bossActive = false;
+                            game.bossDefeated = true;
+                            game.score += 50 + game.level * 5;
+                            gainExp(boss.expValue || 50);
+                            gainEnergyOnKill();
+                            game.boss = null;
+                            bossIndicator.textContent = '👾 Boss: --';
+                            game.enemiesKilled = 0;
+                            game.enemiesPerBoss = Math.min(50, game.enemiesPerBoss + 2);
+                            p.lives = Math.min(p.lives + 3, p.maxLives);
+                            updateHUD();
+                        }
+                        updateHUD();
+                        break;
+                    }
+                }
+
+                for (const blade of game.orbitingBlades) {
+                    if (blade.attackCooldown > 0) continue;
+                    if (dist(blade.x, blade.y, boss.x + boss.w/2, boss.y + boss.h/2) < 40) {
+                        boss.hp -= blade.damage * 0.5;
+                        blade.attackCooldown = blade.attackInterval;
+                        if (boss.hp <= 0) {
+                            game.bossActive = false;
+                            game.bossDefeated = true;
+                            game.score += 50 + game.level * 5;
+                            gainExp(boss.expValue || 50);
+                            gainEnergyOnKill();
+                            game.boss = null;
+                            bossIndicator.textContent = '👾 Boss: --';
+                            game.enemiesKilled = 0;
+                            game.enemiesPerBoss = Math.min(50, game.enemiesPerBoss + 2);
+                            p.lives = Math.min(p.lives + 3, p.maxLives);
+                            updateHUD();
+                        }
+                        updateHUD();
+                        break;
+                    }
+                }
+
+                if (boss.y > H + 50) {
+                    game.bossActive = false;
+                    game.boss = null;
+                    bossIndicator.textContent = '👾 Boss: --';
+                }
+            }
+
+            // 普通敌人逻辑
+            for (let i = game.enemies.length - 1; i >= 0; i--) {
+                const e = game.enemies[i];
+                e.y += e.speed;
+                e.shootTimer++;
+                if (e.shootTimer >= e.shootInterval) {
+                    e.shootTimer = 0;
+                    enemyShoot(e);
+                }
+                if (p.invincible === 0 && rectCollide(p, e)) {
+                    const over = playerTakeDamage();
+                    game.enemies.splice(i, 1);
+                    if (over) return;
+                    continue;
+                }
+                if (e.y > H + 20) {
+                    const over = playerTakeDamage();
+                    game.enemies.splice(i, 1);
+                    if (over) return;
+                    continue;
+                }
+                for (const blade of game.orbitingBlades) {
+                    if (blade.attackCooldown > 0) continue;
+                    if (dist(blade.x, blade.y, e.x + e.w/2, e.y + e.h/2) < 30) {
+                        e.hp -= blade.damage;
+                        blade.attackCooldown = blade.attackInterval;
+                        if (e.hp <= 0) {
+                            game.enemiesKilled++;
+                            gainExp(e.expValue || 5);
+                            gainEnergyOnKill();
+                            game.score += 10 + Math.floor(game.level * 0.5);
+                            game.enemies.splice(i, 1);
+                            updateHUD();
+                            if (!game.bossActive && !game.waveActive && game.enemiesKilled >= game.enemiesPerBoss) {
+                                spawnBoss();
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 玩家子弹 vs 普通敌人
+            for (let i = game.bullets.length - 1; i >= 0; i--) {
+                const b = game.bullets[i];
+                let used = false;
+                for (let j = game.enemies.length - 1; j >= 0; j--) {
+                    const e = game.enemies[j];
+                    if (rectCollide(b, e)) {
+                        e.hp -= b.damage || 1;
+                        used = true;
+                        if (e.hp <= 0) {
+                            game.enemiesKilled++;
+                            gainExp(e.expValue || 5);
+                            gainEnergyOnKill();
+                            game.score += 10 + Math.floor(game.level * 0.5);
+                            game.enemies.splice(j, 1);
+                            updateHUD();
+                            if (!game.bossActive && !game.waveActive && game.enemiesKilled >= game.enemiesPerBoss) {
+                                spawnBoss();
+                            }
+                        }
+                        break;
+                    }
+                }
+                if (used) game.bullets.splice(i, 1);
+            }
+
+            // 敌人子弹 vs 玩家
+            for (let i = game.enemyBullets.length - 1; i >= 0; i--) {
+                const eb = game.enemyBullets[i];
+                if (game.shieldActive) {
+                    const shieldRect = { x: p.x - 10, y: p.y - 10, w: p.w + 20, h: p.h + 20 };
+                    if (rectCollide(shieldRect, eb)) {
+                        game.enemyBullets.splice(i, 1);
+                        game.shieldHp -= 0.5;
+                        if (game.shieldHp <= 0) {
+                            game.shieldActive = false;
+                            game.shieldHp = 0;
+                        }
+                        updateHUD();
+                        continue;
+                    }
+                }
+                if (p.invincible === 0 && rectCollide(p, eb)) {
+                    game.enemyBullets.splice(i, 1);
+                    const over = playerTakeDamage();
+                    if (over) return;
+                }
+            }
+
+            // 僚机被击毁
+            for (let i = game.enemyBullets.length - 1; i >= 0; i--) {
+                const eb = game.enemyBullets[i];
+                for (let j = game.wingmen.length - 1; j >= 0; j--) {
+                    const wm = game.wingmen[j];
+                    if (rectCollide(eb, wm)) {
+                        wm.hp--;
+                        game.enemyBullets.splice(i, 1);
+                        if (wm.hp <= 0) {
+                            game.wingmen.splice(j, 1);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // 怪物潮结束
+            if (game.waveActive && game.waveEnemiesRemaining <= 0 && game.enemies.length === 0) {
+                game.waveActive = false;
+                bossIndicator.textContent = '👾 Boss: --';
+                game.score += 20;
+                updateHUD();
+            }
+
+            updateHUD();
+        }
+
+        function bossShoot(boss) {
+            if (!boss || game.gameOver) return;
+            const count = 3 + Math.floor(game.level / 3);
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2 + game.frame * 0.015;
+                const speed = 2.0 + game.level * 0.08;
+                game.enemyBullets.push({
+                    x: boss.x + boss.w/2 - 5,
+                    y: boss.y + boss.h/2 - 5,
+                    w: 10, h: 10,
+                    speed: speed,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    isBossBullet: true,
+                    originalSpeed: speed,
+                    originalVx: Math.cos(angle) * speed,
+                    originalVy: Math.sin(angle) * speed,
+                });
+            }
+        }
+
+        function enemyShoot(enemy) {
+            if (game.gameOver || game.pendingSkill) return;
+            const speed = 3.0 + game.frame * 0.001 + game.level * 0.05;
+            game.enemyBullets.push({
+                x: enemy.x + enemy.w/2 - 5,
+                y: enemy.y + enemy.h,
+                w: 8, h: 14,
+                speed: speed,
+                originalSpeed: speed,
+            });
+        }
+
+        function playerShoot() {
+            if (game.gameOver || game.pendingSkill) return;
+            const p = game.player;
+            if (p.shootCooldown > 0) return;
+            const dmg = p.damage;
+            const size = p.bulletSize;
+            game.bullets.push({
+                x: p.x + p.w/2 - size/2 - 4, y: p.y - 12,
+                w: size, h: size * 1.8,
+                speed: p.bulletSpeed,
+                damage: dmg,
+            });
+            game.bullets.push({
+                x: p.x + p.w/2 - size/2 + 4, y: p.y - 12,
+                w: size, h: size * 1.8,
+                speed: p.bulletSpeed,
+                damage: dmg,
+            });
+            p.shootCooldown = p.shootDelay;
+        }
+
+        // ===== 绘图 =====
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+            ctx.fillStyle = '#b7d9ff';
+            for (let i = 0; i < 70; i++) {
+                const sx = (i * 31) % W, sy = (i * 17 + game.frame * 0.3) % H;
+                ctx.globalAlpha = 0.4 + 0.4 * Math.sin(i + game.frame * 0.02);
+                ctx.beginPath();
+                ctx.arc(sx, sy, 1 + i % 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+
+            const p = game.player;
+
+            // 护罩
+            if (game.shieldActive) {
+                ctx.beginPath();
+                ctx.arc(p.x + p.w/2, p.y + p.h/2, 45, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(100, 255, 200, ${0.4 + 0.3 * Math.sin(game.frame * 0.1)})`;
+                ctx.lineWidth = 4;
+                ctx.stroke();
+                ctx.fillStyle = `rgba(100, 255, 200, 0.08)`;
+                ctx.fill();
+                ctx.fillStyle = '#1a2a3a';
+                ctx.fillRect(p.x, p.y - 30, 40, 6);
+                ctx.fillStyle = '#5effb0';
+                ctx.fillRect(p.x, p.y - 30, 40 * (game.shieldHp / game.shieldMaxHp), 6);
+            }
+
+            // 缓速效果
+            if (game.slowActive) {
+                ctx.fillStyle = `rgba(100, 200, 255, 0.05)`;
+                ctx.fillRect(0, 0, W, H);
+                ctx.strokeStyle = `rgba(100, 200, 255, 0.15)`;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(10, 10, W-20, H-20);
+            }
+
+            // 飞镖
+            for (const blade of game.orbitingBlades) {
+                ctx.shadowColor = '#5effb0';
+                ctx.shadowBlur = 30;
+                ctx.fillStyle = '#5effb0';
+                ctx.beginPath();
+                const cx = blade.x, cy = blade.y, r = blade.size;
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2 + blade.angle;
+                    const rad = i % 2 === 0 ? r : r * 0.5;
+                    if (i === 0) ctx.moveTo(cx + Math.cos(angle) * rad, cy + Math.sin(angle) * rad);
+                    else ctx.lineTo(cx + Math.cos(angle) * rad, cy + Math.sin(angle) * rad);
+                }
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+
+            // 玩家
+            if (p.invincible > 0 && Math.floor(game.frame / 4) % 2 === 0) ctx.globalAlpha = 0.5;
+            else ctx.globalAlpha = 1.0;
+            ctx.shadowColor = '#3fb0ff';
+            ctx.shadowBlur = 25;
+            const grad = ctx.createLinearGradient(p.x, p.y, p.x+p.w, p.y+p.h);
+            grad.addColorStop(0, '#78dcff');
+            grad.addColorStop(1, '#3d9eff');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.roundRect(p.x, p.y, p.w, p.h, 10);
+            ctx.fill();
+            ctx.fillStyle = '#d4f4ff';
+            ctx.beginPath();
+            ctx.roundRect(p.x+4, p.y-6, 6, 12, 4);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.roundRect(p.x+p.w-10, p.y-6, 6, 12, 4);
+            ctx.fill();
+            ctx.fillStyle = '#b0e8ff';
+            ctx.beginPath();
+            ctx.arc(p.x+p.w/2, p.y+8, 8, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#1a2a4a';
+            ctx.beginPath();
+            ctx.arc(p.x+p.w/2-2, p.y+6, 3, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1.0;
+
+            // 僚机
+            for (const wm of game.wingmen) {
+                ctx.fillStyle = '#7af0c0';
+                ctx.shadowColor = '#7af0c0';
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.roundRect(wm.x, wm.y, wm.w, wm.h, 6);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#224433';
+                ctx.fillRect(wm.x, wm.y - 6, wm.w, 4);
+                const hpPct = wm.hp / wm.maxHp;
+                ctx.fillStyle = hpPct > 0.5 ? '#5eff7a' : '#ffbb4a';
+                ctx.fillRect(wm.x, wm.y - 6, wm.w * hpPct, 4);
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px sans-serif';
+                ctx.fillText('✈️', wm.x+4, wm.y+14);
+                // 显示回复标记
+                ctx.fillStyle = '#5eff7a88';
+                ctx.font = '8px sans-serif';
+                ctx.fillText('+', wm.x + wm.w - 8, wm.y - 8);
+            }
+            ctx.shadowBlur = 0;
+
+            // 子弹
+            ctx.fillStyle = '#f2ff80';
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#f0ff40';
+            for (const b of game.bullets) ctx.fillRect(b.x, b.y, b.w, b.h);
+
+            // 普通敌人
+            for (const e of game.enemies) {
+                const hpPercent = e.hp / e.maxHp;
+                ctx.shadowBlur = 28;
+                ctx.shadowColor = '#ff884d';
+                ctx.fillStyle = e.color || '#ff6b4a';
+                ctx.beginPath();
+                ctx.roundRect(e.x, e.y, e.w, e.h, 8);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#222b44';
+                ctx.fillRect(e.x, e.y - 10, e.w, 6);
+                ctx.fillStyle = hpPercent > 0.5 ? '#5eff7a' : '#ffbb4a';
+                ctx.fillRect(e.x, e.y - 10, e.w * hpPercent, 6);
+                ctx.fillStyle = '#ffffffcc';
+                ctx.font = '10px monospace';
+                ctx.fillText(`HP:${e.hp}`, e.x+2, e.y-14);
+                ctx.fillStyle = '#ffe484';
+                ctx.fillText(`💡${e.expValue}`, e.x + e.w - 30, e.y-14);
+                if (e.fromWave) {
+                    ctx.fillStyle = '#ff88cc';
+                    ctx.fillText('🌊', e.x + e.w/2 - 6, e.y + e.h + 14);
+                }
+                ctx.fillStyle = '#f0faff';
+                ctx.beginPath();
+                ctx.arc(e.x + 8, e.y + 9, 5, 0, Math.PI*2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(e.x + e.w - 8, e.y + 9, 5, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = '#1a233a';
+                ctx.beginPath();
+                ctx.arc(e.x + 8 + 2, e.y + 9 + 2, 2.5, 0, Math.PI*2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(e.x + e.w - 8 + 2, e.y + 9 + 2, 2.5, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            // Boss
+            if (game.bossActive && game.boss) {
+                const boss = game.boss;
+                ctx.shadowBlur = 40;
+                ctx.shadowColor = '#ff2244';
+                const gradB = ctx.createRadialGradient(boss.x+boss.w/2, boss.y+boss.h/2, 10, boss.x+boss.w/2, boss.y+boss.h/2, boss.w/2);
+                gradB.addColorStop(0, '#ff5577');
+                gradB.addColorStop(1, '#991122');
+                ctx.fillStyle = gradB;
+                ctx.beginPath();
+                ctx.roundRect(boss.x, boss.y, boss.w, boss.h, 16);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#ffdd44';
+                ctx.beginPath();
+                ctx.arc(boss.x + boss.w*0.3, boss.y + boss.h*0.35, 12, 0, Math.PI*2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(boss.x + boss.w*0.7, boss.y + boss.h*0.35, 12, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = '#cc2222';
+                ctx.beginPath();
+                ctx.arc(boss.x + boss.w*0.3 + 4, boss.y + boss.h*0.35 + 3, 6, 0, Math.PI*2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(boss.x + boss.w*0.7 + 4, boss.y + boss.h*0.35 + 3, 6, 0, Math.PI*2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffffcc';
+                ctx.font = 'bold 12px monospace';
+                ctx.fillText(`HP: ${boss.hp}/${boss.maxHp}`, boss.x+4, boss.y-24);
+                ctx.fillStyle = '#ff8844';
+                ctx.fillText(`💡${boss.expValue}`, boss.x + boss.w - 50, boss.y-24);
+                ctx.fillStyle = '#222b44';
+                ctx.fillRect(boss.x, boss.y - 18, boss.w, 10);
+                ctx.fillStyle = '#ff3355';
+                ctx.fillRect(boss.x, boss.y - 18, boss.w * (boss.hp/boss.maxHp), 10);
+                ctx.fillStyle = '#ff7777';
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillText('👾 BOSS', boss.x + boss.w/2 - 40, boss.y - 30);
+                ctx.shadowBlur = 0;
+            }
+
+            // 敌人子弹
+            ctx.shadowBlur = 22;
+            ctx.shadowColor = '#ff4d6d';
+            ctx.fillStyle = '#ff7b8f';
+            for (const eb of game.enemyBullets) {
+                ctx.beginPath();
+                ctx.roundRect(eb.x, eb.y, eb.w, eb.h, 5);
+                ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+
+            // 结束
+            if (game.gameOver) {
+                ctx.font = 'bold 52px "Segoe UI", system-ui';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#000000';
+                ctx.shadowBlur = 28;
+                ctx.fillStyle = '#ff6b7c';
+                ctx.fillText('💀 坠毁', W/2, 200);
+                ctx.font = '24px sans-serif';
+                ctx.fillStyle = '#f7e05e';
+                ctx.fillText(`得分: ${game.score}`, W/2, 270);
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+            if (r > w/2) r = w/2;
+            if (r > h/2) r = h/2;
+            this.moveTo(x + r, y);
+            this.lineTo(x + w - r, y);
+            this.quadraticCurveTo(x + w, y, x + w, y + r);
+            this.lineTo(x + w, y + h - r);
+            this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            this.lineTo(x + r, y + h);
+            this.quadraticCurveTo(x, y + h, x, y + h - r);
+            this.lineTo(x, y + r);
+            this.quadraticCurveTo(x, y, x + r, y);
+            this.closePath();
+            return this;
+        };
+
+        // ===== 键盘 =====
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (e.key === ' ') e.preventDefault();
+            if (e.key === 'z' || e.key === 'Z') activateShield();
+            if (e.key === 'x' || e.key === 'X') activateSlow();
+            if (game.pendingSkill) {
+                const cards = skillGrid.querySelectorAll('.skill-card');
+                if (e.key === '1' && cards[0]) selectSkill(cards[0].dataset.skillId);
+                else if (e.key === '2' && cards[1]) selectSkill(cards[1].dataset.skillId);
+                else if (e.key === '3' && cards[2]) selectSkill(cards[2].dataset.skillId);
+            }
+        });
+        window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+        // ===== UI 按钮 =====
+        document.getElementById('restartButton').addEventListener('click', resetGame);
+        document.getElementById('rankButton').addEventListener('click', () => {
+            renderRank();
+            rankOverlay.classList.toggle('active');
+        });
+        document.getElementById('rankCloseBtn').addEventListener('click', () => {
+            rankOverlay.classList.remove('active');
+        });
+        shieldBtn.addEventListener('click', activateShield);
+        slowBtn.addEventListener('click', activateSlow);
+
+        // ===== 主循环 =====
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        resetGame();
+        loop();
+
+        window.addEventListener('blur', () => {
+            for (let key in keys) keys[key] = false;
+        });
+
+    })();
+</script>
+</body>
+</html>
