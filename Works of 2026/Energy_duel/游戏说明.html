@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>能量博弈 — 游戏说明</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@500;700;900&family=ZCOOL+QingKe+HuangYou&display=swap');
+
+  :root {
+    --bg:#05060b;
+    --bg2:#0a1020;
+    --card:#121a2a;
+    --card2:#1b263b;
+    --line:rgba(120,210,255,.24);
+    --line-hot:rgba(255,210,90,.55);
+    --text:#f3f8ff;
+    --muted:#9aa9bc;
+    --gold:#ffd25a;
+    --cyan:#39e6ff;
+    --red:#ff3f68;
+    --blue:#5aa7ff;
+    --purple:#b778ff;
+    --green:#43e68b;
+    --yellow:#f7b84b;
+    --shadow:0 20px 58px rgba(0,0,0,.46);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html { scroll-behavior:smooth; }
+  body {
+    min-height:100vh;
+    color:var(--text);
+    font-family:'Noto Serif SC','Microsoft YaHei',serif;
+    line-height:1.72;
+    background:
+      radial-gradient(circle at 14% 2%, rgba(57,230,255,.26), transparent 30rem),
+      radial-gradient(circle at 88% 8%, rgba(255,63,104,.18), transparent 28rem),
+      radial-gradient(circle at 54% 105%, rgba(183,120,255,.18), transparent 36rem),
+      linear-gradient(145deg, var(--bg), var(--bg2) 58%, #07040e);
+    overflow-x:hidden;
+  }
+  body::before, body::after {
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index:-1;
+  }
+  body::before {
+    background-image:
+      linear-gradient(rgba(57,230,255,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(57,230,255,.045) 1px, transparent 1px);
+    background-size:54px 54px;
+    mask-image:linear-gradient(to bottom, black, transparent 78%);
+    animation:gridMove 18s linear infinite;
+  }
+  body::after {
+    background:
+      radial-gradient(circle, rgba(255,255,255,.14) 1px, transparent 1.6px),
+      linear-gradient(115deg, transparent 0 42%, rgba(255,210,90,.07) 43%, transparent 46% 100%);
+    background-size:46px 46px, 100% 100%;
+    opacity:.32;
+    mix-blend-mode:screen;
+  }
+  @keyframes gridMove { to { background-position:54px 54px; } }
+
+  .wrap { max-width:1180px; margin:0 auto; padding:32px 22px 68px; }
+  .hero {
+    position:relative;
+    min-height:440px;
+    display:grid;
+    align-items:center;
+    padding:52px 0 42px;
+    isolation:isolate;
+  }
+  .hero::before {
+    content:"";
+    position:absolute;
+    left:50%; top:50%;
+    width:min(790px,88vw);
+    aspect-ratio:1;
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+    background:conic-gradient(from 180deg, transparent, rgba(57,230,255,.36), transparent 27%, rgba(255,210,90,.36), transparent 56%, rgba(255,63,104,.25), transparent 82%);
+    filter:blur(.2px);
+    opacity:.78;
+    animation:haloSpin 22s linear infinite;
+    z-index:-2;
+  }
+  .hero::after {
+    content:"ENERGY DUEL";
+    position:absolute;
+    left:50%; bottom:18px;
+    transform:translateX(-50%);
+    font-family:'ZCOOL QingKe HuangYou',sans-serif;
+    font-size:clamp(4.3rem, 15vw, 12rem);
+    letter-spacing:.08em;
+    white-space:nowrap;
+    color:transparent;
+    -webkit-text-stroke:1px rgba(255,255,255,.07);
+    z-index:-1;
+  }
+  @keyframes haloSpin { to { transform:translate(-50%,-50%) rotate(360deg); } }
+
+  .hero-card {
+    position:relative;
+    padding:50px clamp(24px,5vw,60px);
+    border:1px solid rgba(245,200,91,.34);
+    border-radius:38px;
+    background:linear-gradient(135deg, rgba(28,38,60,.88), rgba(7,10,17,.76));
+    box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.10), 0 0 70px rgba(57,230,255,.08);
+    overflow:hidden;
+  }
+  .hero-card::before {
+    content:"";
+    position:absolute;
+    inset:-2px;
+    background:
+      linear-gradient(110deg, transparent 0 28%, rgba(57,230,255,.16) 38%, transparent 48%),
+      radial-gradient(circle at 86% 18%, rgba(255,210,90,.16), transparent 28%);
+    animation:heroSheen 5.2s ease-in-out infinite;
+  }
+  .hero-card::after {
+    content:"";
+    position:absolute;
+    right:-60px; top:-70px;
+    width:290px; height:290px;
+    border:1px solid rgba(57,230,255,.28);
+    border-radius:50%;
+    box-shadow:inset 0 0 50px rgba(57,230,255,.08), 0 0 45px rgba(57,230,255,.08);
+    animation:pulse 3.8s ease-in-out infinite;
+  }
+  @keyframes heroSheen { 0%,45% { transform:translateX(-18%); opacity:.4; } 70%,100% { transform:translateX(18%); opacity:.85; } }
+  @keyframes pulse { 50% { transform:scale(1.07); opacity:.75; } }
+
+  .tag, h1, .subtitle, .hero-metrics { position:relative; z-index:1; }
+  .tag {
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    padding:8px 15px;
+    border-radius:999px;
+    color:var(--gold);
+    border:1px solid rgba(245,200,91,.38);
+    background:rgba(245,200,91,.08);
+    font-size:.78rem;
+    font-weight:900;
+    letter-spacing:.2em;
+    box-shadow:0 0 28px rgba(255,210,90,.08);
+  }
+  h1 {
+    margin:16px 0 8px;
+    font-family:'ZCOOL QingKe HuangYou','Microsoft YaHei',sans-serif;
+    font-size:clamp(4.2rem, 11vw, 9rem);
+    line-height:.9;
+    letter-spacing:.09em;
+    font-weight:400;
+  }
+  h1 span {
+    position:relative;
+    display:inline-block;
+    color:transparent;
+    background:linear-gradient(180deg, #ffffff 0%, #ffe9a7 38%, #35e9ff 68%, #6d89ff 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-stroke:1px rgba(255,255,255,.18);
+    text-shadow:0 0 24px rgba(57,230,255,.48), 0 16px 0 rgba(0,0,0,.28);
+  }
+  h1 span::after {
+    content:"能量博弈";
+    position:absolute;
+    inset:0;
+    transform:translate(7px,7px);
+    color:rgba(255,63,104,.18);
+    -webkit-text-stroke:1px rgba(255,63,104,.36);
+    z-index:-1;
+    clip-path:polygon(0 46%,100% 34%,100% 72%,0 84%);
+  }
+  .subtitle {
+    max-width:780px;
+    color:#d7e2f2;
+    font-size:clamp(1rem, 2vw, 1.18rem);
+    letter-spacing:.14em;
+  }
+  .hero-metrics {
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0,1fr));
+    gap:12px;
+    margin-top:30px;
+    max-width:760px;
+  }
+  .metric {
+    padding:14px 16px;
+    border:1px solid rgba(120,210,255,.22);
+    border-radius:18px;
+    background:rgba(255,255,255,.045);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+    overflow:hidden;
+  }
+  .metric b { display:block; color:var(--gold); font-size:1.6rem; line-height:1; }
+  .metric span { color:var(--muted); font-size:.78rem; }
+
+  .tabs {
+    position:sticky;
+    top:12px;
+    z-index:10;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    max-width:620px;
+    margin:2px auto 34px;
+    padding:8px;
+    border:1px solid var(--line);
+    border-radius:22px;
+    background:rgba(5,6,11,.78);
+    backdrop-filter:blur(16px);
+    box-shadow:0 16px 42px rgba(0,0,0,.35);
+  }
+  .tab-btn {
+    border:0;
+    border-radius:16px;
+    padding:13px 12px;
+    cursor:pointer;
+    color:var(--muted);
+    background:transparent;
+    font:900 .94rem 'Noto Serif SC','Microsoft YaHei',serif;
+    letter-spacing:.13em;
+    transition:background .18s ease, color .18s ease, transform .18s ease;
+  }
+  .tab-btn:hover { color:#fff; background:rgba(255,255,255,.07); transform:translateY(-1px); }
+  .tab-btn.active { color:#111722; background:linear-gradient(135deg, var(--gold), #fff0b9); }
+
+  .page { display:none; }
+  .page.active { display:block; animation:fadeIn .32s ease both; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+  .section { margin-top:30px; }
+  .section-title {
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:16px;
+    margin-bottom:16px;
+    padding-bottom:10px;
+    border-bottom:1px solid var(--line);
+  }
+  .section-title h2 { font-size:1.58rem; letter-spacing:.12em; }
+  .section-title small { color:var(--muted); font-size:.82rem; }
+
+  .grid-2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px; }
+  .init-card, .panel, .flow-step, .rule-card, .skill-card, .codex {
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(27,38,59,.94), rgba(18,26,42,.94));
+    box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .init-card {
+    border-radius:28px;
+    padding:26px;
+    min-height:176px;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+  .init-card:hover, .flow-step:hover, .rule-card:hover, .skill-card:hover { transform:translateY(-5px); border-color:var(--line-hot); box-shadow:0 24px 70px rgba(0,0,0,.42), 0 0 28px rgba(57,230,255,.08); }
+  .init-card .label { color:var(--muted); font-weight:900; letter-spacing:.15em; }
+  .init-card .value { font-family:'ZCOOL QingKe HuangYou',sans-serif; font-size:5.2rem; line-height:.85; font-weight:400; }
+  .init-card.hp .value { color:var(--green); text-shadow:0 0 22px rgba(67,230,139,.26); }
+  .init-card.energy .value { color:var(--cyan); text-shadow:0 0 22px rgba(57,230,255,.28); }
+  .init-card .limit { color:#c8d3e3; font-size:.9rem; }
+
+  .panel { border-radius:26px; padding:22px; margin-top:16px; }
+  .status-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:22px; }
+  .status-label { display:flex; justify-content:space-between; color:var(--muted); font-size:.86rem; margin-bottom:9px; }
+  .status-label b { color:#fff; }
+  .bar { position:relative; display:flex; height:24px; overflow:hidden; border-radius:999px; border:1px solid rgba(255,255,255,.14); background:#070910; }
+  .bar > div { position:relative; }
+  .bar > div::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(255,255,255,.3), transparent); animation:barFlow 2.6s ease-in-out infinite; }
+  @keyframes barFlow { 0% { transform:translateX(-100%); } 65%,100% { transform:translateX(100%); } }
+  .seg-red { background:var(--red); width:30%; }
+  .seg-yellow { background:var(--yellow); width:30%; }
+  .seg-green { background:var(--green); width:40%; }
+  .seg-blue { background:var(--cyan); width:50%; }
+  .bar-num { position:absolute; top:50%; transform:translate(-50%,-50%); font-size:.7rem; font-weight:900; color:#fff; text-shadow:0 1px 4px #000; }
+  .note { margin-top:8px; color:var(--muted); font-size:.8rem; }
+
+  .flow { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; }
+  .flow-step { border-radius:24px; padding:20px; min-height:142px; transition:.18s ease; }
+  .flow-step b { display:block; color:var(--gold); font-family:'ZCOOL QingKe HuangYou',sans-serif; font-size:2.25rem; line-height:1; margin-bottom:14px; }
+  .flow-step p { color:#d7e0ef; font-weight:700; }
+  .flow-step strong { color:var(--cyan); }
+
+  .rules { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; }
+  .rule-card { position:relative; border-radius:24px; padding:20px; min-height:184px; transition:.18s ease; overflow:hidden; }
+  .rule-card::after { content:attr(data-num); position:absolute; right:14px; bottom:-18px; color:rgba(255,255,255,.06); font-family:'ZCOOL QingKe HuangYou',sans-serif; font-size:6rem; line-height:1; }
+  .rule-card h3 { color:var(--gold); margin-bottom:9px; letter-spacing:.08em; }
+  .rule-card p { position:relative; z-index:1; color:#bdc8d8; font-size:.9rem; }
+  .rule-card strong { color:#fff; }
+
+  .codex { display:flex; align-items:center; justify-content:space-between; gap:18px; border-radius:28px; padding:22px; }
+  .codex h2 { font-size:1.85rem; letter-spacing:.1em; }
+  .codex p { color:var(--muted); margin-top:4px; }
+  .legend { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+  .chip { padding:7px 11px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.045); font-size:.8rem; font-weight:900; }
+
+  .cat { margin-top:28px; }
+  .cat-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .cat-title { display:inline-flex; align-items:center; gap:9px; font-weight:900; letter-spacing:.12em; }
+  .cat-title::before { content:""; width:10px; height:10px; border-radius:50%; background:currentColor; box-shadow:0 0 16px currentColor; }
+  .cat-count { color:var(--muted); font-size:.82rem; }
+  .skill-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(275px,1fr)); gap:12px; }
+  .skill-card { --c:var(--cyan); border-radius:20px; padding:16px; min-height:128px; border-left:4px solid var(--c); transition:.18s ease; }
+  .skill-card.dmg { --c:var(--red); }
+  .skill-card.def { --c:var(--blue); }
+  .skill-card.ctrl { --c:var(--purple); }
+  .skill-card.grow { --c:var(--green); }
+  .skill-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .skill-name { color:var(--c); font-size:1.1rem; font-weight:900; letter-spacing:.08em; text-shadow:0 0 14px color-mix(in srgb, var(--c), transparent 72%); }
+  .costs { display:flex; flex-wrap:wrap; gap:5px; justify-content:flex-end; }
+  .cost { padding:3px 8px; border-radius:9px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:#dce6f5; font-size:.72rem; font-weight:800; white-space:nowrap; }
+  .effect { padding-top:10px; border-top:1px solid rgba(255,255,255,.09); color:#c5cfde; font-size:.88rem; }
+  .effect em { color:var(--gold); font-style:normal; font-weight:900; }
+  .footer { margin-top:54px; text-align:center; color:var(--muted); font-size:.75rem; letter-spacing:.18em; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+  @media (max-width:900px) {
+    .hero-metrics, .flow, .rules { grid-template-columns:repeat(2, minmax(0,1fr)); }
+    .codex { flex-direction:column; align-items:flex-start; }
+    .legend { justify-content:flex-start; }
+  }
+  @media (max-width:680px) {
+    .wrap { padding:18px 14px 48px; }
+    .hero { min-height:auto; padding:26px 0; }
+    .hero-card { border-radius:26px; padding:32px 20px; }
+    h1 { letter-spacing:.02em; }
+    .subtitle { letter-spacing:.05em; }
+    .grid-2, .status-grid, .hero-metrics, .flow, .rules { grid-template-columns:1fr; }
+    .tabs { top:8px; }
+    .tab-btn { letter-spacing:.05em; }
+    .section-title { align-items:flex-start; flex-direction:column; gap:3px; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <section class="hero">
+    <div class="hero-card">
+      <div class="tag">终局战术档案 · ENERGY DUEL</div>
+      <h1><span>能量博弈</span></h1>
+      <p class="subtitle">生命燃烧，能量爆裂；在回合、冷却与技能封锁之间，打出你的终极博弈。</p>
+      <div class="hero-metrics">
+        <div class="metric"><b>7</b><span>初始生命</span></div>
+        <div class="metric"><b>5</b><span>初始能量</span></div>
+        <div class="metric"><b>10</b><span>技能卡组</span></div>
+        <div class="metric"><b>3</b><span>回合冷却</span></div>
+      </div>
+    </div>
+  </section>
+
+  <nav class="tabs" aria-label="页面切换">
+    <button class="tab-btn active" onclick="switchPage('rules', this)">游戏规则</button>
+    <button class="tab-btn" onclick="switchPage('skills', this)">技能图鉴</button>
+  </nav>
+
+  <section id="page-rules" class="page active">
+    <div class="section">
+      <div class="section-title"><div><h2>初始状态</h2><small>开局资源决定第一轮姿态</small></div></div>
+      <div class="grid-2">
+        <div class="init-card hp"><div class="label">生命值 HP</div><div class="value">7</div><div class="limit">上限 10 · 低血量进入危险区</div></div>
+        <div class="init-card energy"><div class="label">能量值 ENERGY</div><div class="value">5</div><div class="limit">上限 10 · 技能发动核心燃料</div></div>
+      </div>
+      <div class="panel">
+        <div class="status-grid">
+          <div>
+            <div class="status-label"><span>生命条 / HP</span><b>7 / 10</b></div>
+            <div class="bar"><div class="seg-red"></div><div class="seg-yellow"></div><div class="seg-green"></div><span class="bar-num" style="left:15%">1-3</span><span class="bar-num" style="left:45%">4-6</span><span class="bar-num" style="left:80%">7-10</span></div>
+            <div class="note"><span style="color:var(--red)">■</span> 濒危　<span style="color:var(--yellow)">■</span> 警戒　<span style="color:var(--green)">■</span> 安全</div>
+          </div>
+          <div>
+            <div class="status-label"><span>能量条 / ENERGY</span><b>5 / 10</b></div>
+            <div class="bar"><div class="seg-blue"></div><span class="bar-num" style="left:25%">蓝色能量</span></div>
+            <div class="note"><span style="color:var(--cyan)">■</span> 蓝色表示当前能量，黑底表示容量边界</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><div><h2>游戏流程</h2><small>四步进入对抗</small></div></div>
+      <div class="flow">
+        <div class="flow-step"><b>01</b><p>双方各选 <strong>10 个技能</strong><br>组建本局卡组</p></div>
+        <div class="flow-step"><b>02</b><p>每回合选择技能<br>并决定 <strong>x 值 1~3</strong></p></div>
+        <div class="flow-step"><b>03</b><p>双方同时揭示<br><strong>同步发动技能</strong></p></div>
+        <div class="flow-step"><b>04</b><p>结算伤害与状态<br>进入<strong>下一回合</strong></p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><div><h2>核心规则</h2><small>胜负藏在资源节奏里</small></div></div>
+      <div class="rules">
+        <div class="rule-card" data-num="01"><h3>回合制对抗</h3><p>每回合双方各选择一个技能发动，并决定该技能的 <strong>x 值（1~3）</strong>。双方技能同时结算。</p></div>
+        <div class="rule-card" data-num="02"><h3>能量回复</h3><p>每经过 <strong>2 个回合</strong>，双方在回合开始时自动获得 <strong>+1 能量</strong>。</p></div>
+        <div class="rule-card" data-num="03"><h3>技能冷却</h3><p>每个技能使用后进入 <strong>3 回合冷却</strong>，冷却期间无法再次使用。</p></div>
+        <div class="rule-card" data-num="04"><h3>卡组构筑</h3><p>游戏开始前，双方各自从全部技能中选择 <strong>10 个技能</strong>组成本局卡组。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="page-skills" class="page">
+    <div class="codex">
+      <div><h2>技能图鉴</h2><p>伤害、护盾、控制与发育互相制衡。高 x 值爆发更强，也更考验资源管理。</p></div>
+      <div class="legend"><span class="chip" style="color:var(--red)">伤害 6</span><span class="chip" style="color:var(--blue)">防御 2</span><span class="chip" style="color:var(--purple)">控制 4</span><span class="chip" style="color:var(--green)">发育 6</span></div>
+    </div>
+
+    <div class="cat">
+      <div class="cat-head"><span class="cat-title" style="color:var(--red)">伤害类</span><span class="cat-count">6 个技能</span></div>
+      <div class="skill-grid">
+        <div class="skill-card dmg"><div class="skill-head"><span class="skill-name">攻击</span><div class="costs"><span class="cost">能量 -x</span></div></div><div class="effect">对对方造成 <em>x</em> 点伤害</div></div>
+        <div class="skill-card dmg"><div class="skill-head"><span class="skill-name">火攻</span><div class="costs"><span class="cost">能量 -(x+1)</span></div></div><div class="effect">造成 <em>2</em> 点伤害；若未被防守，对方下 <em>x+1</em> 个回合开始时能量 -1</div></div>
+        <div class="skill-card dmg"><div class="skill-head"><span class="skill-name">毒计</span><div class="costs"><span class="cost">能量 -(x+1)</span></div></div><div class="effect">造成 <em>1</em> 点伤害；若未被防守，对方下 <em>x+1</em> 个回合开始时生命 -1</div></div>
+        <div class="skill-card dmg"><div class="skill-head"><span class="skill-name">炸弹</span><div class="costs"><span class="cost">能量 -x</span></div></div><div class="effect">对方在 <em>2+x</em> 回合结束后受到 <em>2+x</em> 点伤害（延迟爆发）</div></div>
+        <div class="skill-card dmg"><div class="skill-head"><span class="skill-name">向死</span><div class="costs"><span class="cost">生命 -(x+1)</span><span class="cost">能量 -(x+1)</span></div></div><div class="effect">下 <em>x</em> 个回合内造成的伤害 <em>+x</em></div></div>
+        <div class="skill-card dmg"><div class="skill-head"><span class="skill-name">破釜</span><div class="costs"><span class="cost">生命 -(x+1)</span></div></div><div class="effect">对对方造成 <em>2x</em> 点伤害，并令对方能量 <em>-x</em></div></div>
+      </div>
+    </div>
+
+    <div class="cat">
+      <div class="cat-head"><span class="cat-title" style="color:var(--blue)">防御类</span><span class="cat-count">2 个技能</span></div>
+      <div class="skill-grid">
+        <div class="skill-card def"><div class="skill-head"><span class="skill-name">刺盾</span><div class="costs"><span class="cost">生命 -1</span><span class="cost">能量 -x</span></div></div><div class="effect">本回合受到伤害 <em>-x</em>；受到攻击时反弹 <em>x</em> 点伤害</div></div>
+        <div class="skill-card def"><div class="skill-head"><span class="skill-name">护盾</span><div class="costs"><span class="cost">能量 -x</span></div></div><div class="effect">本回合受到伤害 <em>-(x+1)</em></div></div>
+      </div>
+    </div>
+
+    <div class="cat">
+      <div class="cat-head"><span class="cat-title" style="color:var(--purple)">控制类</span><span class="cat-count">4 个技能</span></div>
+      <div class="skill-grid">
+        <div class="skill-card ctrl"><div class="skill-head"><span class="skill-name">弱化</span><div class="costs"><span class="cost">生命 -x</span></div></div><div class="effect">令对方能量 <em>-(2x-1)</em></div></div>
+        <div class="skill-card ctrl"><div class="skill-head"><span class="skill-name">御策</span><div class="costs"><span class="cost">能量 -(x+1)</span></div></div><div class="effect">随机禁用对方 <em>x+1</em> 个已使用过的技能，持续 <em>2</em> 回合</div></div>
+        <div class="skill-card ctrl"><div class="skill-head"><span class="skill-name">息兵</span><div class="costs"><span class="cost">禁用自身 x 技能 3 回合</span></div></div><div class="effect">增加能量 = 已禁用技能数 / 2（<em>向上取整</em>）</div></div>
+        <div class="skill-card ctrl"><div class="skill-head"><span class="skill-name">死斗</span><div class="costs"><span class="cost">能量 -x</span></div></div><div class="effect">双方下 <em>2x</em> 回合无法增加生命；你生命减少后能量 <em>+1</em></div></div>
+      </div>
+    </div>
+
+    <div class="cat">
+      <div class="cat-head"><span class="cat-title" style="color:var(--green)">发育类</span><span class="cat-count">6 个技能</span></div>
+      <div class="skill-grid">
+        <div class="skill-card grow"><div class="skill-head"><span class="skill-name">修复</span><div class="costs"><span class="cost">能量 -2x</span></div></div><div class="effect">生命 <em>+(1+x)</em></div></div>
+        <div class="skill-card grow"><div class="skill-head"><span class="skill-name">生息</span><div class="costs"><span class="cost">能量 -(x+1)</span></div></div><div class="effect">下 <em>2x+1</em> 个回合开始时能量 <em>+1</em></div></div>
+        <div class="skill-card grow"><div class="skill-head"><span class="skill-name">奇谋</span><div class="costs"><span class="cost">生命 -(x+1)</span><span class="cost">能量 +x</span></div></div><div class="effect">互换自身 <em>生命值</em> 与 <em>能量值</em></div></div>
+        <div class="skill-card grow"><div class="skill-head"><span class="skill-name">妄生</span><div class="costs"><span class="cost">生命 -2x</span></div></div><div class="effect">下 <em>3x</em> 个回合开始时生命 <em>+1</em>、能量 <em>+1</em></div></div>
+        <div class="skill-card grow"><div class="skill-head"><span class="skill-name">急攻</span><div class="costs"><span class="cost">生命 -x</span></div></div><div class="effect">将自身能量直接调整为 <em>2x</em></div></div>
+        <div class="skill-card grow"><div class="skill-head"><span class="skill-name">忘隙</span><div class="costs"><span class="cost">能量 -x</span></div></div><div class="effect">自身生命 <em>+x</em>；对方能量 <em>+x</em>（双方受益）</div></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">ENERGY GAME · 终局战术档案</footer>
+</main>
+<script>
+function switchPage(id, btn) {
+  document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(tab => tab.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>
