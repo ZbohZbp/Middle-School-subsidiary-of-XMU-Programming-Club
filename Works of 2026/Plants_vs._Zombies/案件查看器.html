@@ -1,0 +1,1965 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>案件档案 - 植物法庭</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        body {
+            background: #0a0a1a;
+            color: #e0e0ff;
+            font-family: 'Microsoft YaHei', 'Consolas', monospace;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* 上传区域 */
+        .upload-zone {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            background: #0a0a1a;
+        }
+        
+        .upload-zone.has-data {
+            display: none;
+        }
+        
+        .upload-zone.dragover {
+            background: rgba(0, 255, 255, 0.05);
+        }
+        
+        .upload-zone.dragover .upload-box {
+            border-color: #00ffff;
+            transform: scale(1.05);
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.3);
+        }
+        
+        .upload-box {
+            background: linear-gradient(135deg, #1a1a3a, #0d0d2a);
+            border: 2px dashed #6c5ce7;
+            border-radius: 20px;
+            padding: 80px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            max-width: 500px;
+        }
+        
+        .upload-box:hover {
+            border-color: #00ffff;
+            transform: translateY(-10px);
+            box-shadow: 0 20px 50px rgba(0, 255, 255, 0.2);
+        }
+        
+        .upload-icon {
+            font-size: 100px;
+            margin-bottom: 30px;
+        }
+        
+        .upload-text {
+            font-size: 1.5em;
+            color: #00ffff;
+            margin-bottom: 15px;
+        }
+        
+        .upload-hint {
+            color: #6c5ce7;
+            font-size: 1em;
+        }
+        
+        #file-input { display: none; }
+        
+        /* 分页容器 */
+        .pages-container {
+            display: none;
+            height: 100vh;
+            position: relative;
+        }
+        
+        .pages-container.visible {
+            display: block;
+        }
+        
+        .page {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            padding: 20px 40px;
+            overflow-y: auto;
+        }
+        
+        .page.active {
+            display: flex;
+        }
+        
+        /* 导航栏 */
+        .nav-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background: linear-gradient(180deg, #0a0a1a, transparent);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            z-index: 50;
+        }
+        
+        .nav-title {
+            color: #00ffff;
+            font-size: 1.2em;
+            text-shadow: 0 0 10px #00ffff80;
+        }
+        
+        .nav-dots {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .nav-dot {
+            width: 40px;
+            height: 4px;
+            background: #6c5ce740;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .nav-dot.active {
+            background: #00ffff;
+            width: 60px;
+            box-shadow: 0 0 10px #00ffff80;
+        }
+        
+        .nav-dot:hover {
+            background: #6c5ce7;
+        }
+        
+        .nav-actions {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .nav-btn {
+            background: #1a1a3a;
+            border: 1px solid #6c5ce7;
+            color: #00ffff;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }
+        
+        .nav-btn:hover {
+            background: #6c5ce7;
+            transform: translateY(-2px);
+        }
+        
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        
+        /* 页面指示器 */
+        .page-indicator {
+            position: fixed;
+            right: 30px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 50;
+        }
+        
+        .indicator-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #6c5ce740;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .indicator-dot::before {
+            content: attr(data-label);
+            position: absolute;
+            right: 25px;
+            top: 50%;
+            transform: translateY(-50%);
+            white-space: nowrap;
+            color: #6c5ce7;
+            font-size: 0.85em;
+            opacity: 0;
+            transition: all 0.3s;
+        }
+        
+        .indicator-dot:hover::before {
+            opacity: 1;
+            right: 30px;
+        }
+        
+        .indicator-dot.active {
+            background: #00ffff;
+            box-shadow: 0 0 15px #00ffff80;
+            transform: scale(1.3);
+        }
+        
+        .indicator-dot:hover {
+            background: #6c5ce7;
+        }
+        
+        /* 页面内容 */
+        .page-header {
+            text-align: center;
+            padding: 80px 0 40px;
+        }
+        
+        .page-header h1 {
+            font-size: 2.5em;
+            color: #00ffff;
+            text-shadow: 0 0 30px #00ffff80;
+            margin-bottom: 15px;
+        }
+        
+        .page-header h1:hover {
+            animation: glitch 0.5s infinite;
+        }
+        
+        .subtitle {
+            color: #a0a0ff;
+            font-size: 1.2em;
+        }
+        
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .section {
+            background: linear-gradient(135deg, #1a1a3a, #0d0d2a);
+            border: 1px solid #6c5ce740;
+            border-radius: 15px;
+            padding: 30px;
+            transition: all 0.3s;
+        }
+        
+        .section:hover {
+            border-color: #6c5ce780;
+            box-shadow: 0 0 30px rgba(108, 92, 231, 0.2);
+            transform: translateY(-5px);
+        }
+        
+        .section-title {
+            color: #00ffff;
+            font-size: 1.5em;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .section-title .icon {
+            font-size: 1.3em;
+        }
+        
+        /* 信息网格 */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+        
+        .info-item {
+            background: #0d0d2a;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #6c5ce7;
+            transition: all 0.3s;
+        }
+        
+        .info-item:hover {
+            border-left-color: #00ffff;
+            transform: translateX(10px);
+            box-shadow: -5px 0 20px rgba(0, 255, 255, 0.2);
+        }
+        
+        .info-label {
+            color: #6c5ce7;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }
+        
+        .info-value {
+            color: #e0e0ff;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        
+        .criminal { 
+            color: #ff6b6b; 
+            text-shadow: 0 0 15px #ff6b6b80;
+        }
+        
+        .truth-box {
+            background: linear-gradient(135deg, #1a0d2a, #0d1a2a);
+            border: 1px solid #6c5ce760;
+            border-radius: 15px;
+            padding: 30px;
+            line-height: 2;
+            font-size: 1.15em;
+            position: relative;
+        }
+        
+        .truth-box::before {
+            content: '"';
+            position: absolute;
+            top: -30px;
+            left: 20px;
+            font-size: 100px;
+            color: #6c5ce730;
+            font-family: serif;
+        }
+        
+        /* 嫌疑人卡片 */
+        .suspects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        
+        .suspect-card {
+            background: linear-gradient(135deg, #0d0d2a, #1a1a3a);
+            padding: 25px;
+            border-radius: 15px;
+            border: 2px solid #6c5ce740;
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .suspect-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.1), transparent);
+            transition: left 0.5s;
+        }
+        
+        .suspect-card:hover::before {
+            left: 100%;
+        }
+        
+        .suspect-card:hover {
+            border-color: #00ffff;
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(0, 255, 255, 0.2);
+        }
+        
+        .suspect-card.is-criminal {
+            border-color: #ff6b6b80;
+            background: linear-gradient(135deg, #1a0d0d, #2a1515);
+        }
+        
+        .suspect-card.is-criminal:hover {
+            border-color: #ff6b6b;
+            box-shadow: 0 20px 40px rgba(255, 107, 107, 0.3);
+        }
+        
+        .suspect-avatar {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #6c5ce7, #00ffff);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin: 0 auto 20px;
+            box-shadow: 0 10px 30px rgba(108, 92, 231, 0.3);
+        }
+        
+        .suspect-name {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #e0e0ff;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        
+        .suspect-role {
+            color: #6c5ce7;
+            text-align: center;
+            font-size: 0.95em;
+            margin-bottom: 15px;
+        }
+        
+        .suspect-motive {
+            color: #a0a0ff;
+            line-height: 1.6;
+            text-align: center;
+        }
+        
+        .badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        
+        .badge-criminal { 
+            background: #ff6b6b40; 
+            color: #ff6b6b; 
+            border: 1px solid #ff6b6b;
+            animation: pulse 2s infinite;
+        }
+        
+        /* 阶段卡片 */
+        .phases-list {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        .phase-card {
+            background: linear-gradient(135deg, #0d0d2a, #1a1a3a);
+            border: 2px solid #6c5ce740;
+            border-radius: 15px;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        
+        .phase-card:hover {
+            border-color: #00ffff;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+        }
+        
+        .phase-card.expanded .phase-content {
+            max-height: 2000px;
+            padding: 25px;
+        }
+        
+        .phase-card.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        
+        .phase-header {
+            padding: 25px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.3s;
+        }
+        
+        .phase-header:hover {
+            background: rgba(0, 255, 255, 0.05);
+        }
+        
+        .phase-title {
+            color: #00ffff;
+            font-size: 1.3em;
+            font-weight: bold;
+        }
+        
+        .phase-stats {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .stat {
+            background: #1a1a3a;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 0.95em;
+        }
+        
+        .stat-label { color: #6c5ce7; }
+        .stat-value { color: #00ffff; font-weight: bold; margin-left: 8px; }
+        
+        .expand-icon {
+            color: #6c5ce7;
+            font-size: 1.5em;
+            transition: transform 0.3s;
+        }
+        
+        .phase-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.5s;
+            padding: 0 25px;
+            border-top: 1px solid #6c5ce730;
+        }
+        
+        .testimony, .evidence-item {
+            background: #0d0d2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border-left: 4px solid #6c5ce750;
+            transition: all 0.3s;
+        }
+        
+        .testimony:hover, .evidence-item:hover {
+            transform: translateX(5px);
+        }
+        
+        .testimony.contradiction {
+            border-left-color: #ff6b6b;
+            background: linear-gradient(90deg, #1a0d0d, #0d0d2a);
+        }
+        
+        .testimony-header, .evidence-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .speaker {
+            color: #00ffff;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        
+        .testimony-text, .evidence-desc {
+            color: #c0c0ff;
+            line-height: 1.7;
+            font-size: 1.05em;
+        }
+        
+        .tag {
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+        }
+        
+        .tag-contradiction { background: #ff6b6b30; color: #ff6b6b; }
+        .tag-evidence { background: #6c5ce730; color: #6c5ce7; }
+        
+        .judge-comment {
+            background: linear-gradient(90deg, #6c5ce720, #00ffff10);
+            padding: 20px 25px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border-left: 4px solid #6c5ce7;
+            color: #e0e0ff;
+            font-style: italic;
+            line-height: 1.7;
+        }
+        
+
+        
+        /* 键盘提示 */
+        .keyboard-hint {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #6c5ce780;
+            font-size: 0.85em;
+            z-index: 50;
+        }
+        
+        kbd {
+            background: #1a1a3a;
+            padding: 3px 8px;
+            border-radius: 4px;
+            border: 1px solid #6c5ce740;
+            margin: 0 3px;
+        }
+        /* ===== 高级法庭档案 UI 重制版 ===== */
+        :root {
+            --court-bg: #060805;
+            --court-panel: rgba(16, 22, 15, 0.78);
+            --court-panel-2: rgba(28, 20, 12, 0.72);
+            --court-line: rgba(222, 184, 92, 0.24);
+            --court-gold: #e8c66d;
+            --court-gold-soft: #fff1b8;
+            --court-green: #8fd36a;
+            --court-red: #d86854;
+            --court-text: #f3ead2;
+            --court-muted: #a89d82;
+            --court-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
+        }
+
+        * { scrollbar-width: thin; scrollbar-color: rgba(232,198,109,.55) rgba(255,255,255,.04); }
+        ::selection { background: rgba(232,198,109,.28); color: #fff7d6; }
+
+        body {
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 18% 12%, rgba(143, 211, 106, 0.16), transparent 28%),
+                radial-gradient(circle at 82% 16%, rgba(232, 198, 109, 0.14), transparent 30%),
+                linear-gradient(135deg, #050704 0%, #0a1008 42%, #08070b 100%);
+            color: var(--court-text);
+            font-family: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+            background-size: 52px 52px;
+            mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 86%, transparent);
+        }
+
+        body::after {
+            content: 'COURT ARCHIVE';
+            position: fixed;
+            right: -3vw;
+            bottom: 6vh;
+            z-index: 0;
+            pointer-events: none;
+            color: rgba(232, 198, 109, 0.045);
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: clamp(4rem, 11vw, 12rem);
+            font-weight: 900;
+            letter-spacing: .08em;
+            transform: rotate(-8deg);
+        }
+
+        .upload-zone { background: transparent; z-index: 100; }
+        .upload-zone::before {
+            content: '';
+            position: absolute;
+            inset: 8%;
+            border: 1px solid rgba(232,198,109,.15);
+            border-radius: 34px;
+            box-shadow: inset 0 0 80px rgba(232,198,109,.035);
+        }
+        .upload-zone.dragover { background: rgba(232, 198, 109, 0.045); }
+        .upload-box {
+            position: relative;
+            background:
+                linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.025)),
+                rgba(10, 16, 9, .78);
+            border: 1px dashed rgba(232, 198, 109, .55);
+            border-radius: 28px;
+            padding: 72px 82px;
+            max-width: 560px;
+            box-shadow: var(--court-shadow), inset 0 1px 0 rgba(255,255,255,.08);
+            backdrop-filter: blur(18px);
+        }
+        .upload-box:hover, .upload-zone.dragover .upload-box {
+            border-color: var(--court-gold);
+            transform: translateY(-8px);
+            box-shadow: 0 34px 110px rgba(0,0,0,.52), 0 0 0 1px rgba(232,198,109,.22);
+        }
+        .upload-icon { font-size: 82px; filter: drop-shadow(0 18px 24px rgba(0,0,0,.38)); }
+        .upload-text {
+            color: var(--court-gold-soft);
+            font-family: Georgia, 'Noto Serif SC', serif;
+            font-weight: 900;
+            letter-spacing: .08em;
+        }
+        .upload-hint { color: var(--court-muted); }
+
+        .pages-container { position: relative; z-index: 1; }
+        .page {
+            padding: 84px clamp(28px, 5vw, 72px) 72px;
+        }
+
+        .nav-bar {
+            height: 64px;
+            background: linear-gradient(180deg, rgba(5,8,5,.92), rgba(5,8,5,.54), transparent);
+            border-bottom: 1px solid rgba(232,198,109,.12);
+            backdrop-filter: blur(14px);
+        }
+        .nav-title {
+            color: var(--court-gold-soft);
+            font-family: Georgia, 'Noto Serif SC', serif;
+            font-weight: 900;
+            letter-spacing: .12em;
+            text-shadow: 0 8px 28px rgba(0,0,0,.4);
+        }
+        .nav-btn {
+            background: rgba(255,255,255,.055);
+            border: 1px solid rgba(232,198,109,.28);
+            color: var(--court-gold-soft);
+            border-radius: 999px;
+            padding: 9px 22px;
+            font-weight: 800;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+        }
+        .nav-btn:hover {
+            background: linear-gradient(135deg, rgba(232,198,109,.22), rgba(143,211,106,.12));
+            border-color: rgba(232,198,109,.62);
+            transform: translateY(-2px);
+        }
+        .nav-dot {
+            height: 5px;
+            background: rgba(232,198,109,.18);
+        }
+        .nav-dot.active {
+            background: linear-gradient(90deg, var(--court-gold), var(--court-green));
+            box-shadow: 0 0 18px rgba(232,198,109,.45);
+        }
+        .indicator-dot { background: rgba(232,198,109,.2); border: 1px solid rgba(232,198,109,.16); }
+        .indicator-dot.active {
+            background: var(--court-gold);
+            box-shadow: 0 0 22px rgba(232,198,109,.58);
+        }
+        .indicator-dot::before { color: var(--court-gold-soft); }
+
+        .page-header {
+            padding: 26px 0 34px;
+            text-align: left;
+            width: min(1120px, 100%);
+            margin: 0 auto;
+        }
+        .page-header h1 {
+            position: relative;
+            display: inline-block;
+            color: var(--court-gold-soft);
+            font-family: Georgia, 'Noto Serif SC', serif;
+            font-size: clamp(2.5rem, 5vw, 5rem);
+            line-height: 1.05;
+            letter-spacing: .05em;
+            text-shadow: 0 18px 48px rgba(0,0,0,.5);
+        }
+        .page-header h1:hover { animation: none; }
+        .page-header h1::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: -.55rem;
+            width: 72%;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(232,198,109,.95), rgba(143,211,106,.42), transparent);
+            box-shadow: 0 0 18px rgba(232,198,109,.3);
+        }
+        .subtitle {
+            margin-top: 16px;
+            color: var(--court-muted);
+            font-size: 1rem;
+            letter-spacing: .08em;
+        }
+
+        .content-area {
+            max-width: 1120px;
+            gap: 24px;
+        }
+        .section, .truth-box, .suspect-card, .phase-card, .testimony, .evidence-item, .judge-comment {
+            background:
+                linear-gradient(145deg, rgba(255,255,255,.075), rgba(255,255,255,.022)),
+                var(--court-panel);
+            border: 1px solid var(--court-line);
+            box-shadow: var(--court-shadow), inset 0 1px 0 rgba(255,255,255,.055);
+            backdrop-filter: blur(14px);
+        }
+        .section {
+            border-radius: 24px;
+            padding: 28px;
+        }
+        .section:hover, .suspect-card:hover, .phase-card:hover {
+            border-color: rgba(232,198,109,.55);
+            transform: translateY(-4px);
+            box-shadow: 0 34px 100px rgba(0,0,0,.48), 0 0 0 1px rgba(143,211,106,.06);
+        }
+        .section-title {
+            color: var(--court-gold-soft);
+            font-family: Georgia, 'Noto Serif SC', serif;
+            font-weight: 900;
+            letter-spacing: .06em;
+            margin-bottom: 22px;
+        }
+
+        .info-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
+        .info-item {
+            background: rgba(0,0,0,.18);
+            border: 1px solid rgba(232,198,109,.14);
+            border-left: 3px solid var(--court-gold);
+            border-radius: 18px;
+            padding: 18px 20px;
+        }
+        .info-item:hover {
+            transform: translateY(-3px);
+            border-left-color: var(--court-green);
+            box-shadow: 0 20px 50px rgba(0,0,0,.28);
+        }
+        .info-label { color: var(--court-muted); font-size: .78rem; letter-spacing: .16em; font-weight: 800; }
+        .info-value { color: var(--court-gold-soft); font-size: 1.25rem; }
+        .criminal { color: #ff8d78; text-shadow: 0 0 18px rgba(216,104,84,.38); }
+
+        .truth-box {
+            border-radius: 24px;
+            padding: 32px 34px;
+            line-height: 1.95;
+            font-size: 1.08rem;
+            color: #efe3c6;
+            background:
+                radial-gradient(circle at 0% 0%, rgba(232,198,109,.11), transparent 34%),
+                linear-gradient(145deg, rgba(35, 22, 13, .84), rgba(8, 15, 10, .78));
+        }
+        .truth-box::before {
+            content: 'TRUTH';
+            top: 16px;
+            right: 24px;
+            left: auto;
+            font-size: .74rem;
+            color: rgba(232,198,109,.5);
+            letter-spacing: .28em;
+            font-family: Georgia, serif;
+        }
+
+        .suspects-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+        .suspect-card {
+            border-radius: 24px;
+            border-width: 1px;
+            padding: 26px 22px 24px;
+        }
+        .suspect-card::before {
+            background: linear-gradient(90deg, transparent, rgba(232,198,109,.14), transparent);
+        }
+        .suspect-card:hover { transform: translateY(-8px); }
+        .suspect-card.is-criminal {
+            border-color: rgba(216,104,84,.52);
+            background:
+                radial-gradient(circle at 80% 8%, rgba(216,104,84,.18), transparent 30%),
+                linear-gradient(145deg, rgba(45, 17, 12, .86), rgba(12, 10, 9, .78));
+        }
+        .suspect-avatar {
+            width: 78px;
+            height: 78px;
+            background: linear-gradient(135deg, rgba(232,198,109,.95), rgba(143,211,106,.88));
+            color: #17200d;
+            box-shadow: 0 18px 44px rgba(0,0,0,.34), 0 0 0 8px rgba(232,198,109,.08);
+        }
+        .suspect-name { color: var(--court-gold-soft); font-family: Georgia, 'Noto Serif SC', serif; letter-spacing: .04em; }
+        .suspect-role { color: var(--court-gold); font-weight: 800; }
+        .suspect-motive { color: #cfc4a8; }
+        .badge { border-radius: 999px; top: 16px; right: 16px; }
+        .badge-criminal {
+            background: rgba(216,104,84,.13);
+            color: #ff9a85;
+            border-color: rgba(216,104,84,.55);
+        }
+
+        .phases-list { gap: 18px; }
+        .phase-card { border-radius: 24px; border-width: 1px; }
+        .phase-header {
+            padding: 22px 24px;
+            background: linear-gradient(90deg, rgba(232,198,109,.08), transparent);
+        }
+        .phase-header:hover { background: linear-gradient(90deg, rgba(232,198,109,.14), rgba(143,211,106,.04)); }
+        .phase-title {
+            color: var(--court-gold-soft);
+            font-family: Georgia, 'Noto Serif SC', serif;
+            letter-spacing: .08em;
+        }
+        .phase-stats { gap: 10px; flex-wrap: wrap; }
+        .stat {
+            background: rgba(0,0,0,.22);
+            border: 1px solid rgba(232,198,109,.16);
+            padding: 8px 14px;
+            border-radius: 999px;
+        }
+        .stat-label { color: var(--court-muted); }
+        .stat-value { color: var(--court-gold); }
+        .expand-icon { color: var(--court-gold); }
+        .phase-content { border-top: 1px solid rgba(232,198,109,.14); }
+        .phase-card.expanded .phase-content { padding: 24px; }
+
+        .content-subtitle {
+            color: var(--court-gold);
+            margin: 24px 0 14px;
+            font-family: Georgia, 'Noto Serif SC', serif;
+            letter-spacing: .12em;
+        }
+        .content-subtitle:first-child { margin-top: 0; }
+        .testimony, .evidence-item {
+            border-radius: 18px;
+            margin-bottom: 12px;
+            border-left: 3px solid rgba(232,198,109,.42);
+            padding: 18px 20px;
+        }
+        .testimony:hover, .evidence-item:hover { transform: translateX(4px); border-left-color: var(--court-gold); }
+        .testimony.contradiction {
+            border-left-color: var(--court-red);
+            background:
+                linear-gradient(90deg, rgba(216,104,84,.15), rgba(255,255,255,.035)),
+                rgba(18, 13, 10, .82);
+        }
+        .speaker { color: var(--court-gold-soft); }
+        .testimony-text, .evidence-desc { color: #d8cfb6; }
+        .tag { border-radius: 999px; border: 1px solid transparent; font-weight: 800; }
+        .tag-contradiction { background: rgba(216,104,84,.13); color: #ff9a85; border-color: rgba(216,104,84,.32); }
+        .tag-evidence { background: rgba(232,198,109,.12); color: var(--court-gold-soft); border-color: rgba(232,198,109,.26); }
+        .judge-comment {
+            border-radius: 18px;
+            border-left: 3px solid var(--court-gold);
+            background:
+                linear-gradient(90deg, rgba(232,198,109,.12), rgba(143,211,106,.045)),
+                rgba(0,0,0,.18);
+            color: #efe3c6;
+            font-style: normal;
+        }
+
+        .keyboard-hint {
+            bottom: 20px;
+            color: rgba(232,198,109,.48);
+            background: rgba(5,8,5,.55);
+            border: 1px solid rgba(232,198,109,.14);
+            border-radius: 999px;
+            padding: 8px 14px;
+            backdrop-filter: blur(12px);
+        }
+        kbd {
+            background: rgba(232,198,109,.12);
+            border-color: rgba(232,198,109,.24);
+            color: var(--court-gold-soft);
+        }
+
+        @media (max-width: 720px) {
+            .nav-dots { display: none; }
+            .nav-title { font-size: .9rem; }
+            .page { padding: 78px 18px 84px; }
+            .page-header h1 { font-size: 2.35rem; }
+            .page-indicator { display: none; }
+            .phase-header { align-items: flex-start; flex-direction: column; gap: 14px; }
+            .keyboard-hint { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="upload-zone" id="upload-zone">
+        <div class="upload-box" id="upload-box">
+            <div class="upload-icon">📋</div>
+            <div class="upload-text">拖拽案件文件到这里</div>
+            <div class="upload-hint">或点击选择 .json 文件</div>
+        </div>
+        <input type="file" id="file-input" accept=".json">
+    </div>
+    
+    <div class="pages-container" id="pages-container">
+        <nav class="nav-bar">
+            <button class="nav-btn" id="back-btn">← 返回</button>
+            <span class="nav-title" id="nav-title"></span>
+            <div class="nav-dots" id="nav-dots"></div>
+        </nav>
+        
+        <div class="page-indicator" id="page-indicator"></div>
+        
+        <!-- Page 1: 案件信息 -->
+        <div class="page active" id="page-0">
+            <div class="page-header">
+                <h1 id="title"></h1>
+                <div class="subtitle" id="type-location"></div>
+            </div>
+            <div class="content-area">
+                <div class="section">
+                    <div class="section-title"><span class="icon">📋</span> 案件信息</div>
+                    <div class="info-grid" id="info-grid"></div>
+                </div>
+                <div class="section">
+                    <div class="section-title"><span class="icon">🔍</span> 案件真相</div>
+                    <div class="truth-box" id="truth"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Page 2: 嫌疑人 -->
+        <div class="page" id="page-1">
+            <div class="page-header">
+                <h1>嫌疑人</h1>
+                <div class="subtitle">点击卡片查看详情</div>
+            </div>
+            <div class="content-area">
+                <div class="suspects-grid" id="suspects"></div>
+            </div>
+        </div>
+        
+        <!-- Page 3: 审判阶段 -->
+        <div class="page" id="page-2">
+            <div class="page-header">
+                <h1>审判阶段</h1>
+                <div class="subtitle">点击阶段展开详情</div>
+            </div>
+            <div class="content-area">
+                <div class="phases-list" id="phases"></div>
+            </div>
+        </div>
+        
+        <div class="keyboard-hint">
+            点击屏幕左右两侧翻页 | <kbd>←</kbd> <kbd>→</kbd> 键盘翻页 | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> 跳转
+        </div>
+    </div>
+
+    <script>
+        const EMBEDDED_DATA = {
+  "id": "ai_case_27393",
+  "title": "阳光失窃案",
+  "type": "监守自盗",
+  "location": "阳光银行",
+  "complexity": 2,
+  "suspects": [
+    {
+      "name": "向日葵",
+      "role": "阳光生产者",
+      "personality": "活泼开朗，乐于助人，但偶尔粗心大意",
+      "motive": "因金阳光种子被偷导致自己产量下降，可能自导自演博取同情"
+    },
+    {
+      "name": "大嘴花",
+      "role": "夜间巡逻员",
+      "personality": "沉默寡言，嫉妒心强，易冲动",
+      "motive": "嫉妒向日葵受欢迎，偷走金阳光种子并嫁祸给她以打击其声誉"
+    },
+    {
+      "name": "豌豆射手",
+      "role": "警卫队长",
+      "personality": "严谨负责，但有时过于武断",
+      "motive": "曾与向日葵竞争阳光配额，有栽赃嫌疑"
+    },
+    {
+      "name": "坚果",
+      "role": "仓库管理员",
+      "personality": "胆小怕事，但诚实可靠",
+      "motive": "因保管不力被批评，可能制造盗窃掩盖失职"
+    },
+    {
+      "name": "路灯花",
+      "role": "夜间路灯",
+      "personality": "正义感强，观察力敏锐",
+      "motive": "曾被向日葵嘲笑光线不足，有报复动机"
+    }
+  ],
+  "phases": [
+    {
+      "testimonies": [
+        {
+          "id": "T01",
+          "speaker": "豌豆射手",
+          "text": "案发当晚10点，我亲眼看到向日葵在仓库外，鬼鬼祟祟的。",
+          "is_contradiction": true,
+          "press": [
+            {
+              "q": "当时仓库附近的光线如何？你能看清她的脸吗？",
+              "a": "月光很亮，而且她转身时我看到了她脸上的花瓣纹路。",
+              "clue": "向日葵的花瓣碎片在仓库门口"
+            }
+          ],
+          "seat": "witness",
+          "portrait": "豌豆射手"
+        },
+        {
+          "id": "T02",
+          "speaker": "向日葵",
+          "text": "当时我正参加派对，监控可以证明，豌豆射手一定看错了。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "派对上有谁可以为你作证？",
+              "a": "坚果和樱桃炸弹都和我在一起跳舞。",
+              "clue": ""
+            }
+          ],
+          "seat": "defendant",
+          "portrait": "向日葵"
+        },
+        {
+          "id": "T03",
+          "speaker": "坚果",
+          "text": "派对很热闹，向日葵确实来了，但她中途离开了十分钟。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "她离开时是几点？说了去做什么吗？",
+              "a": "大约9点50分，她说去上厕所，但表情有点慌张。",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "坚果"
+        },
+        {
+          "id": "T04",
+          "speaker": "大嘴花",
+          "text": "我在仓库附近巡逻时，闻到了向日葵特有的气味。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "气味是从仓库里还是仓库外传来的？",
+              "a": "从仓库门口飘出来的，很浓，像是刚停留过。",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "大嘴花"
+        },
+        {
+          "id": "T05",
+          "speaker": "路灯花",
+          "text": "当晚仓库的灯坏了，我维修时看到门口有花瓣碎片。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "你维修时是几点？",
+              "a": "大概10点15分，那时派对还没结束。",
+              "clue": "向日葵的花瓣碎片出现在仓库门口"
+            }
+          ],
+          "seat": "witness",
+          "portrait": "路灯花"
+        },
+        {
+          "id": "T06",
+          "speaker": "樱桃炸弹",
+          "text": "派对上向日葵穿的是红色裙子，和她的花瓣颜色很搭。",
+          "is_contradiction": true,
+          "press": [
+            {
+              "q": "你确定她穿的是红色？监控里向日葵穿的是黄色裙子。",
+              "a": "哦，那我可能记错了，派对灯光太闪了。",
+              "clue": "红色裙子和监控中黄色裙子不符"
+            }
+          ],
+          "seat": "witness",
+          "portrait": "樱桃炸弹"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "E01",
+          "title": "派对监控记录",
+          "type": "监控记录",
+          "desc": "仓库派对监控显示，向日葵当晚10点整正在派对中央跳舞，衣着为黄色裙子。"
+        },
+        {
+          "id": "E02",
+          "title": "仓库时间戳",
+          "type": "监控录像",
+          "desc": "仓库门口监控显示，22:58分有人影经过，身着黄色裙子，但面部模糊。"
+        },
+        {
+          "id": "E03",
+          "title": "豌豆射手行程",
+          "type": "证人笔录",
+          "desc": "豌豆射手的手机定位记录显示，他当晚10:30才到达仓库附近区域。"
+        }
+      ],
+      "valid_objections": [
+        {
+          "testimony_id": "T01",
+          "evidence_id": "E01",
+          "reason": "证词称案发当晚10点看到向日葵在仓库外，但派对监控显示向日葵当晚10点整正在派对中央跳舞，地点冲突。"
+        },
+        {
+          "testimony_id": "T01",
+          "evidence_id": "E03",
+          "reason": "证词称当晚10点在仓库外看到向日葵，但豌豆射手的手机定位记录显示他当晚10:30才到达仓库附近区域，时间与行动能力冲突。"
+        },
+        {
+          "testimony_id": "T02",
+          "evidence_id": "E01",
+          "reason": "证词称当时正参加派对，监控可以证明，但证词本身是自我辩解，监控证据E01直接支持其表面真相，不过根据规则，E01作为反驳T01的证据已使用，此处仅列出与T02的间接支持关系，但需明确：T02与E01无矛盾，只是支持，因此不建立对应，仅保留T01的对应。"
+        },
+        {
+          "testimony_id": "T06",
+          "evidence_id": "E01",
+          "reason": "证词称派对上向日葵穿的是红色裙子，但监控显示她当晚10点整穿着黄色裙子，衣着颜色冲突。"
+        }
+      ],
+      "judge_comment": "豌豆射手，你的证词说向日葵深夜在仓库游荡，可监控显示它那时正在睡觉！难道你俩的时钟是不同次元的？",
+      "transition": {
+        "speaker": "豌豆射手",
+        "text": "哎呀，我记错了！是11点看到的，不是10点。但我发誓，当时向日葵绝对在仓库外，至于为什么监控里她在跳舞……可能她有分身术？反正我眼神好得很！",
+        "seat": "witness",
+        "portrait": "豌豆射手"
+      }
+    },
+    {
+      "testimonies": [
+        {
+          "id": "T07",
+          "speaker": "大嘴花",
+          "text": "我晚上都在睡觉，根本没去仓库那边。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "你睡觉时有没有听到什么声音？",
+              "a": "我睡得死，啥也没听到。",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "大嘴花"
+        },
+        {
+          "id": "T08",
+          "speaker": "樱桃炸弹",
+          "text": "大嘴花平时懒得很，半夜不可能去偷种子。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "你凭什么这么肯定？",
+              "a": "我住她隔壁，她每晚都打呼噜。",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "樱桃炸弹"
+        },
+        {
+          "id": "T09",
+          "speaker": "坚果",
+          "text": "仓库门锁完好无损，我没看到任何撬锁痕迹。",
+          "is_contradiction": true,
+          "press": [
+            {
+              "q": "那你检查过锁周围吗？",
+              "a": "我只看了锁眼，没注意旁边。",
+              "clue": "锁旁有巨大齿痕"
+            }
+          ],
+          "seat": "witness",
+          "portrait": "坚果"
+        },
+        {
+          "id": "T10",
+          "speaker": "寒冰射手",
+          "text": "我半夜巡逻时，看到仓库门缝里有亮光闪烁。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "那是几点的事？",
+              "a": "大概是凌晨一点左右。",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "寒冰射手"
+        },
+        {
+          "id": "T11",
+          "speaker": "向日葵",
+          "text": "我参加派对到很晚，根本没空去仓库。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "那你有看到其他人接近仓库吗？",
+              "a": "没有，我一直待在派对里。",
+              "clue": ""
+            }
+          ],
+          "seat": "defendant",
+          "portrait": "向日葵"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "E11",
+          "title": "门锁齿痕照",
+          "type": "特殊物证",
+          "desc": "现场拍摄的仓库门锁照片显示，锁体上有两排清晰的巨大齿痕，与坚果声称的完好无损完全不符。"
+        },
+        {
+          "id": "E12",
+          "title": "大嘴花值班表",
+          "type": "工作记录",
+          "desc": "仓库值班记录显示，案发时段大嘴花被安排巡逻仓库区域，且其口腔内残留有金属碎屑。"
+        },
+        {
+          "id": "E13",
+          "title": "锁匠鉴定报告",
+          "type": "证人笔录",
+          "desc": "专业锁匠鉴定后指出，门锁是被外力咬合破坏，而非工具撬动，齿痕与植物咬合特征吻合。"
+        }
+      ],
+      "valid_objections": [
+        {
+          "testimony_id": "T09",
+          "evidence_id": "E11",
+          "reason": "证词声称仓库门锁完好无损，但门锁齿痕照显示锁体上有两排巨大齿痕，与完好状态直接冲突。"
+        },
+        {
+          "testimony_id": "T09",
+          "evidence_id": "E13",
+          "reason": "证词说未看到撬锁痕迹，但锁匠鉴定报告指出门锁被外力咬合破坏，存在明显破坏痕迹。"
+        },
+        {
+          "testimony_id": "T07",
+          "evidence_id": "E12",
+          "reason": "证词说晚上都在睡觉没去仓库，但值班记录显示大嘴花案发时段被安排巡逻仓库区域。"
+        }
+      ],
+      "judge_comment": "向日葵，你说你无辜？可你的花瓣碎片在仓库里‘自拍’，大嘴花叼走种子还留你‘名片’，这栽赃技术比你的光合作用还业余！",
+      "transition": {
+        "speaker": "坚果",
+        "text": "哎哟，我承认我看到那个大嘴花叼着门锁，但我觉得它是在练习新技能！它说‘咬碎它就算入门’，谁知道它真把门给咬开了啊！",
+        "seat": "witness",
+        "portrait": "坚果"
+      }
+    },
+    {
+      "testimonies": [
+        {
+          "id": "T12",
+          "speaker": "向日葵",
+          "text": "我当晚一直在花园东边浇水，根本没去仓库",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "有谁能证明你在浇水？",
+              "a": "小喷菇说看到我了，但它可能记不清",
+              "clue": ""
+            },
+            {
+              "q": "你浇水时看到路灯花了吗？",
+              "a": "没有，它那时候应该在西边巡逻",
+              "clue": ""
+            }
+          ],
+          "seat": "defendant",
+          "portrait": "向日葵"
+        },
+        {
+          "id": "T13",
+          "speaker": "路灯花",
+          "text": "我半夜巡逻时，看到一朵大花从仓库后门跳出来",
+          "is_contradiction": true,
+          "press": [
+            {
+              "q": "你之前为什么没报告这个发现？",
+              "a": "我当时没看清，怕冤枉好人",
+              "clue": "路灯花眼神闪烁，不自觉地摸了一下口袋"
+            }
+          ],
+          "seat": "witness",
+          "portrait": "路灯花"
+        },
+        {
+          "id": "T14",
+          "speaker": "大嘴花",
+          "text": "我那天晚上在睡觉，坚果可以作证",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "坚果后来改口了，你怎么解释？",
+              "a": "他一定是记错了，我们当时在聊天",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "大嘴花"
+        },
+        {
+          "id": "T15",
+          "speaker": "坚果",
+          "text": "我记性不好，但大嘴花确实说它要早睡",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "你之前不是肯定说它在睡觉吗？",
+              "a": "我当时太困了，可能听错了",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "坚果"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "E21",
+          "title": "仓库监控",
+          "type": "监控录像",
+          "desc": "仓库后门监控显示，23:00至凌晨3:00期间没有任何大花进出，只有路灯花本人经过一次。"
+        },
+        {
+          "id": "E22",
+          "title": "口袋物品",
+          "type": "特殊物证",
+          "desc": "从路灯花口袋中找到一张纸条，写着'别多嘴，否则大嘴花会找你麻烦'，字迹潦草。"
+        },
+        {
+          "id": "E23",
+          "title": "巡逻记录",
+          "type": "工作记录",
+          "desc": "路灯花的夜间巡逻签到记录显示，当晚其巡逻路线未覆盖仓库后门区域。"
+        }
+      ],
+      "valid_objections": [
+        {
+          "testimony_id": "T13",
+          "evidence_id": "E21",
+          "reason": "证词说看到一朵大花从仓库后门跳出，但监控显示23:00至3:00期间没有任何大花进出，只有路灯花本人经过，时间与地点上直接冲突"
+        },
+        {
+          "testimony_id": "T13",
+          "evidence_id": "E23",
+          "reason": "证词说路灯花在半夜巡逻时看到大花从仓库后门跳出，但巡逻记录显示其巡逻路线未覆盖仓库后门区域，行为描述与事实冲突"
+        }
+      ],
+      "judge_comment": "路灯花，你自称是正义的化身，但你的证词却像你的光线一样，闪得让人看不清真相——时间线都错位了！",
+      "transition": {
+        "speaker": "路灯花",
+        "text": "好吧好吧，我承认我撒了谎！我没看到大花跳出来，其实是我自己半夜偷溜去仓库吃夜宵，结果被监控拍到了，怕被罚才编的瞎话！",
+        "seat": "witness",
+        "portrait": "路灯花"
+      }
+    }
+  ],
+  "truth": "大嘴花因嫉妒向日葵的受欢迎程度，在夜晚潜入仓库偷走了金阳光种子。它利用自己巨大的嘴部叼走种子后，故意留下向日葵的花瓣碎片制造监守自盗假象。路灯花在巡逻时目睹了其可疑行踪，最终在证据面前大嘴花认罪。",
+  "brief_comment": "三阶段案件，需三轮异议。R1推翻时间矛盾，R2揭露行为矛盾，R3揭露身份矛盾。",
+  "_meta": {
+    "real_criminal": "大嘴花",
+    "r1_cliffhanger": "豌豆射手声称看到向日葵深夜独自在仓库徘徊，但它的证词为何与监控时间对不上？",
+    "contradictions": [
+      {
+        "witness": "豌豆射手",
+        "type": "时间矛盾",
+        "surface_truth": "豌豆射手声称案发当晚10点看到向日葵在仓库外，但监控显示向日葵当时正在参加派对。",
+        "deep_truth": "豌豆射手其实是在11点看到的，它记错了时间，暗示有其他人利用了时间差。"
+      },
+      {
+        "witness": "坚果",
+        "type": "行为矛盾",
+        "surface_truth": "坚果坚称仓库门锁完好，但现场有巨大齿痕，暗示凶手曾用暴力破门。",
+        "deep_truth": "齿痕是大嘴花留下的，它用嘴叼断门锁后进入仓库。"
+      },
+      {
+        "witness": "路灯花",
+        "type": "身份矛盾",
+        "surface_truth": "路灯花作证说看到一朵大花从仓库跃出，但最初它隐瞒了目击事实。",
+        "deep_truth": "路灯花因害怕大嘴花报复而不敢作证，最终在压力下坦白，完整真相是大嘴花偷走了种子。"
+      }
+    ],
+    "difficulty": "normal",
+    "num_rounds": 3,
+    "fail_tolerance": 3,
+    "branches": {
+      "r1_success": [
+        {
+          "speaker": "豌豆射手",
+          "text": "我、我可能看错了，那天晚上仓库外光线太暗了。",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "豌豆射手",
+          "text": "但是我真的看到向日葵的影子在仓库门口晃悠！",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "豌豆射手",
+          "text": "好吧，其实我看到的是向日葵的白天照片，我自己记错时间了。",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "豌豆射手",
+          "text": "可仓库里确实有东西在动，不是向日葵是谁呢？",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "什么？这证词漏洞百出，简直是在浪费法庭时间！",
+          "emotion": "shocked"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "休庭！本法官需要去喝杯咖啡冷静一下再查。",
+          "emotion": "normal"
+        }
+      ],
+      "r1_fail": [
+        {
+          "speaker": "辣椒",
+          "text": "向日葵，你的证人连话都说不利索，还想翻案？",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "豌豆射手",
+          "text": "呼……幸亏没让我再吃一颗子弹。",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "但你别高兴太早，你的证词漏洞比我的辣度还大。",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "向日葵，你根本就是在拖延时间，认罪吧！",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "异议无效，法庭继续，下一个证人别打瞌睡。",
+          "emotion": "normal"
+        }
+      ],
+      "r2_success": [
+        {
+          "speaker": "路灯花",
+          "text": "我那天晚上明明看见大嘴花叼着种子溜达，还假装散步！",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "向日葵",
+          "text": "对，我花园里的花瓣碎片肯定是它故意留下的，我冤枉啊！",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "胡说！我嘴大就能乱咬人吗？这锅我不背！",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "好吧……是我偷的，谁让它天天被夸，我嫉妒得牙痒痒！",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "啥？大嘴花你吃醋吃出刑事案件了？这反转辣眼睛！",
+          "emotion": "shocked"
+        },
+        {
+          "speaker": "向日葵",
+          "text": "呜呜，终于清白了，我以后种地得锁门防大嘴！",
+          "emotion": "relieved"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "大嘴花盗窃加诬陷，判你种半年太阳花田，劳动改造！",
+          "emotion": "normal"
+        }
+      ],
+      "r2_fail": [
+        {
+          "speaker": "辣椒",
+          "text": "两次失败，您这辩护水平真是让人笑掉大牙！",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "证据确凿，被告向日葵就是凶手，无需再审！",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "嘿嘿，这锅甩得真漂亮，我都不用动嘴。",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "本庭宣判：向日葵有罪，押下去晒太阳！",
+          "emotion": "normal"
+        }
+      ],
+      "r3_success": [
+        {
+          "speaker": "路灯花",
+          "text": "我亲眼看见大嘴花叼着种子，那嘴大得能塞下整个太阳！",
+          "emotion": "crying"
+        },
+        {
+          "speaker": "坚果",
+          "text": "大嘴花，你嘴太大，藏不住秘密，快认罪吧！",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "豌豆射手",
+          "text": "没错，那晚我听见你嚼东西的声音，不是种子是啥？",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "我嫉妒向日葵受欢迎，就偷了种子，还撒花瓣陷害她！",
+          "emotion": "crying"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "我嘴大心也大，但这次嘴大惹祸，我认了！",
+          "emotion": "crying"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "对不起向日葵，我错怪你了，辣椒我辣眼睛了！",
+          "emotion": "shocked"
+        },
+        {
+          "speaker": "向日葵",
+          "text": "没事，真相大白，我还是那个阳光灿烂的小可爱！",
+          "emotion": "relieved"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "向日葵无罪释放，大嘴花偷窃陷害罪名成立！",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "本庭宣判，正义虽迟但到，大家散了吧！",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "向日葵",
+          "text": "全场欢呼吧，我又能发光发热啦！",
+          "emotion": "happy"
+        }
+      ],
+      "r3_fail": [
+        {
+          "speaker": "辣椒",
+          "text": "向日葵，你的三次狡辩都像被烤焦的叶子一样脆弱！",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "证据确凿如阳光普照，你的谎言早已无处遁形。",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "嘿嘿，这朵傻花终于要枯萎了，我可真开心呀。",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "坚果",
+          "text": "我明明没看到大嘴花动嘴，怎么向日葵就成凶手了？",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "本庭宣判，向日葵犯故意伤害罪，押入花园监狱。",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "立即执行，不得上诉，退庭吧。",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "向日葵",
+          "text": "我的花瓣在凋零，而真正的恶魔在黑暗中狂笑。",
+          "emotion": "despair"
+        }
+      ]
+    }
+  }
+};
+        
+        // 状态
+        let currentPage = 0;
+        const totalPages = 3;
+        const pageNames = ['案件信息', '嫌疑人', '审判阶段'];
+        
+        // 元素
+        const uploadZone = document.getElementById('upload-zone');
+        const uploadBox = document.getElementById('upload-box');
+        const fileInput = document.getElementById('file-input');
+        const pagesContainer = document.getElementById('pages-container');
+        const backBtn = document.getElementById('back-btn');
+        const navTitle = document.getElementById('nav-title');
+        const navDots = document.getElementById('nav-dots');
+        const pageIndicator = document.getElementById('page-indicator');
+
+        // 创建导航点
+        for (let i = 0; i < totalPages; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+            dot.onclick = () => goToPage(i);
+            navDots.appendChild(dot);
+            
+            const indicator = document.createElement('div');
+            indicator.className = 'indicator-dot' + (i === 0 ? ' active' : '');
+            indicator.setAttribute('data-label', pageNames[i]);
+            indicator.onclick = () => goToPage(i);
+            pageIndicator.appendChild(indicator);
+        }
+
+        // 翻页
+        function goToPage(pageIndex) {
+            if (pageIndex < 0 || pageIndex >= totalPages || pageIndex === currentPage) return;
+            
+            // 隐藏当前页
+            document.getElementById(`page-${currentPage}`).classList.remove('active');
+            // 显示新页
+            document.getElementById(`page-${pageIndex}`).classList.add('active');
+            
+            currentPage = pageIndex;
+            updateNav();
+        }
+
+        function updateNav() {
+            // 更新导航点
+            navDots.querySelectorAll('.nav-dot').forEach((dot, i) => {
+                dot.classList.toggle('active', i === currentPage);
+            });
+            
+            // 更新指示器
+            pageIndicator.querySelectorAll('.indicator-dot').forEach((dot, i) => {
+                dot.classList.toggle('active', i === currentPage);
+            });
+            
+            // 更新标题
+            navTitle.textContent = pageNames[currentPage];
+        }
+
+        // 键盘控制
+        document.addEventListener('keydown', (e) => {
+            if (!pagesContainer.classList.contains('visible')) return;
+            
+            switch(e.key) {
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    goToPage(currentPage + 1);
+                    break;
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    goToPage(currentPage - 1);
+                    break;
+                case '1':
+                    goToPage(0);
+                    break;
+                case '2':
+                    goToPage(1);
+                    break;
+                case '3':
+                    goToPage(2);
+                    break;
+            }
+        });
+
+        // 鼠标点击翻页
+        document.addEventListener('click', (e) => {
+            if (!pagesContainer.classList.contains('visible')) return;
+            
+            // 排除点击按钮、卡片等交互元素
+            if (e.target.closest('.nav-btn, .nav-dot, .indicator-dot, .suspect-card, .phase-card, .phase-header, .upload-box')) return;
+            
+            const x = e.clientX;
+            const screenWidth = window.innerWidth;
+            
+            // 点击左侧 1/3 区域 - 上一页
+            if (x < screenWidth * 0.33) {
+                goToPage(currentPage - 1);
+            }
+            // 点击右侧 1/3 区域 - 下一页
+            else if (x > screenWidth * 0.67) {
+                goToPage(currentPage + 1);
+            }
+        });
+
+        // 文件处理
+        uploadBox.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) loadFile(e.target.files[0]);
+        });
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) loadFile(e.dataTransfer.files[0]);
+        });
+
+        backBtn.addEventListener('click', () => {
+            uploadZone.classList.remove('has-data');
+            pagesContainer.classList.remove('visible');
+            fileInput.value = '';
+            currentPage = 0;
+            updateNav();
+        });
+
+        function loadFile(file) {
+            if (!file.name.endsWith('.json')) {
+                alert('请选择 .json 文件');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    renderCase(data);
+                    uploadZone.classList.add('has-data');
+                    pagesContainer.classList.add('visible');
+                } catch (err) {
+                    alert('文件解析失败: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // 植物 emoji
+        const plantEmojis = {
+            '向日葵': '🌻', '豌豆射手': '🌱', '坚果': '🥜', '樱桃炸弹': '🍒',
+            '大嘴花': '🌺', '寒冰射手': '❄️', '路灯花': '💡', '小喷菇': '🍄',
+            '毁灭菇': '💣', '大喷菇': '🌿', '双发射手': '🌿', '忧郁菇': '😢',
+            '胆小菇': '😰', '大蒜': '🧄', '南瓜头': '🎃', '高坚果': '🧱',
+            '地刺': '📌', '杨桃': '⭐', '辣椒检察官': '🌶️'
+        };
+
+        function getEmoji(name) {
+            return plantEmojis[name] || '🌱';
+        }
+
+        // 渲染
+        function renderCase(data) {
+            const meta = data._meta || {};
+            const criminal = meta.real_criminal || '';
+
+            // 标题
+            document.getElementById('title').textContent = data.title || '未知案件';
+            document.getElementById('type-location').textContent = `${data.type || '未知类型'} · ${data.location || '未知地点'}`;
+            navTitle.textContent = pageNames[0];
+
+            // 信息网格
+            const infoItems = [
+                { label: '案件ID', value: data.id || '-' },
+                { label: '复杂度', value: '★'.repeat(data.complexity || 1) },
+                { label: '审判轮数', value: `${meta.num_rounds || data.phases?.length || '?'} 轮` },
+                { label: '真凶', value: criminal || '?', isCriminal: true }
+            ];
+            document.getElementById('info-grid').innerHTML = infoItems.map(item => `
+                <div class="info-item">
+                    <div class="info-label">${item.label}</div>
+                    <div class="info-value ${item.isCriminal ? 'criminal' : ''}">${item.value}</div>
+                </div>
+            `).join('');
+
+            // 真相
+            document.getElementById('truth').textContent = data.truth || '真相未知...';
+
+            // 嫌疑人
+            document.getElementById('suspects').innerHTML = (data.suspects || []).map(s => {
+                const isCriminal = s.name === criminal;
+                return `
+                    <div class="suspect-card ${isCriminal ? 'is-criminal' : ''}">
+                        ${isCriminal ? '<span class="badge badge-criminal">真凶</span>' : ''}
+                        <div class="suspect-avatar">${getEmoji(s.name)}</div>
+                        <div class="suspect-name">${s.name}</div>
+                        <div class="suspect-role">${s.role || '?'}</div>
+                        <div class="suspect-motive">${s.motive || '?'}</div>
+                    </div>
+                `;
+            }).join('');
+
+            // 阶段
+            document.getElementById('phases').innerHTML = (data.phases || []).map((phase, i) => {
+                const tests = phase.testimonies || [];
+                const evs = phase.evidence || [];
+                const contra = tests.filter(t => t.is_contradiction).length;
+                
+                return `
+                    <div class="phase-card" onclick="this.classList.toggle('expanded')">
+                        <div class="phase-header">
+                            <span class="phase-title">Phase ${i + 1}</span>
+                            <div class="phase-stats">
+                                <span class="stat"><span class="stat-label">证词</span><span class="stat-value">${tests.length}</span></span>
+                                <span class="stat"><span class="stat-label">矛盾</span><span class="stat-value">${contra}</span></span>
+                                <span class="stat"><span class="stat-label">证据</span><span class="stat-value">${evs.length}</span></span>
+                            </div>
+                            <span class="expand-icon">▼</span>
+                        </div>
+                        <div class="phase-content">
+                            <h4 class="content-subtitle">证词</h4>
+                            ${tests.map(t => `
+                                <div class="testimony ${t.is_contradiction ? 'contradiction' : ''}">
+                                    <div class="testimony-header">
+                                        <span class="speaker">${getEmoji(t.speaker)} ${t.speaker}</span>
+                                        ${t.is_contradiction ? '<span class="tag tag-contradiction">矛盾</span>' : ''}
+                                    </div>
+                                    <div class="testimony-text">"${t.text}"</div>
+                                </div>
+                            `).join('')}
+                            
+                            <h4 class="content-subtitle">证据</h4>
+                            ${evs.map(e => `
+                                <div class="evidence-item">
+                                    <div class="evidence-header">
+                                        <span class="speaker">📄 ${e.title}</span>
+                                        <span class="tag tag-evidence">${e.type || '证据'}</span>
+                                    </div>
+                                    <div class="evidence-desc">${e.desc}</div>
+                                </div>
+                            `).join('')}
+                            
+                            ${phase.judge_comment ? `
+                                <div class="judge-comment">⚖️ 法官: ${phase.judge_comment}</div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // URL 参数加载
+        const urlParams = new URLSearchParams(window.location.search);
+        const fileUrl = urlParams.get('file');
+        if (fileUrl) {
+            fetch(fileUrl)
+                .then(r => r.json())
+                .then(data => {
+                    renderCase(data);
+                    uploadZone.classList.add('has-data');
+                    pagesContainer.classList.add('visible');
+                })
+                .catch(err => console.error('加载失败:', err));
+        }
+        
+        
+        // 自动加载嵌入的数据
+        if (typeof EMBEDDED_DATA !== 'undefined') {
+            renderCase(EMBEDDED_DATA);
+            uploadZone.classList.add('has-data');
+            pagesContainer.classList.add('visible');
+        }
+        
+    </script>
+</body>
+</html>

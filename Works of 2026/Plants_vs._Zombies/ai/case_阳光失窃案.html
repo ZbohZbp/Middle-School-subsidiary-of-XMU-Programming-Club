@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>案件档案</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a1a;
+            color: #e0e0ff;
+            font-family: 'Microsoft YaHei', sans-serif;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            padding: 30px 0;
+            border-bottom: 2px solid #6c5ce7;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            color: #00ffff;
+            text-shadow: 0 0 20px #00ffff80;
+            margin-bottom: 10px;
+        }
+        .header .subtitle {
+            color: #a0a0ff;
+            font-size: 1.1em;
+        }
+        .section {
+            background: #1a1a3a;
+            border: 1px solid #6c5ce740;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .section-title {
+            color: #00ffff;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #6c5ce740;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .info-item {
+            background: #0d0d2a;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #6c5ce7;
+        }
+        .info-label {
+            color: #a0a0ff;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+        }
+        .info-value {
+            color: #e0e0ff;
+            font-size: 1.05em;
+        }
+        .criminal { color: #ff6b6b; font-weight: bold; }
+        .suspect-card {
+            background: #0d0d2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 3px solid #6c5ce7;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .suspect-card.is-criminal {
+            border-left-color: #ff6b6b;
+            background: #1a0d0d;
+        }
+        .suspect-name {
+            font-size: 1.1em;
+            font-weight: bold;
+            min-width: 80px;
+        }
+        .suspect-role {
+            color: #a0a0ff;
+            font-size: 0.85em;
+            min-width: 60px;
+        }
+        .suspect-motive {
+            color: #c0c0ff;
+            flex: 1;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+        .badge-criminal { background: #ff6b6b40; color: #ff6b6b; }
+        .phase-card {
+            background: #0d0d2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #6c5ce730;
+        }
+        .phase-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .phase-title {
+            color: #00ffff;
+            font-weight: bold;
+        }
+        .stats {
+            display: flex;
+            gap: 15px;
+        }
+        .stat {
+            background: #1a1a3a;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+        }
+        .stat-label { color: #a0a0ff; }
+        .stat-value { color: #00ffff; font-weight: bold; }
+        .truth-box {
+            background: linear-gradient(135deg, #1a0d2a, #0d1a2a);
+            border: 1px solid #6c5ce760;
+            border-radius: 10px;
+            padding: 20px;
+            line-height: 1.8;
+            font-size: 1.05em;
+        }
+        .glow { text-shadow: 0 0 10px currentColor; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="glow" id="title"></h1>
+            <div class="subtitle" id="type-location"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">案件信息</div>
+            <div class="info-grid" id="info-grid"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">案件真相</div>
+            <div class="truth-box" id="truth"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">嫌疑人</div>
+            <div id="suspects"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">审判阶段</div>
+            <div id="phases"></div>
+        </div>
+    </div>
+
+    <script>
+        // 嵌入的案件数据占位符
+        const CASE_DATA = {
+  "id": "ai_case_27393",
+  "title": "阳光失窃案",
+  "type": "监守自盗",
+  "location": "阳光银行",
+  "complexity": 2,
+  "suspects": [
+    {
+      "name": "向日葵",
+      "role": "阳光生产者",
+      "personality": "活泼开朗，乐于助人，但偶尔粗心大意",
+      "motive": "因金阳光种子被偷导致自己产量下降，可能自导自演博取同情"
+    },
+    {
+      "name": "大嘴花",
+      "role": "夜间巡逻员",
+      "personality": "沉默寡言，嫉妒心强，易冲动",
+      "motive": "嫉妒向日葵受欢迎，偷走金阳光种子并嫁祸给她以打击其声誉"
+    },
+    {
+      "name": "豌豆射手",
+      "role": "警卫队长",
+      "personality": "严谨负责，但有时过于武断",
+      "motive": "曾与向日葵竞争阳光配额，有栽赃嫌疑"
+    },
+    {
+      "name": "坚果",
+      "role": "仓库管理员",
+      "personality": "胆小怕事，但诚实可靠",
+      "motive": "因保管不力被批评，可能制造盗窃掩盖失职"
+    },
+    {
+      "name": "路灯花",
+      "role": "夜间路灯",
+      "personality": "正义感强，观察力敏锐",
+      "motive": "曾被向日葵嘲笑光线不足，有报复动机"
+    }
+  ],
+  "phases": [
+    {
+      "testimonies": [
+        {
+          "id": "T01",
+          "speaker": "豌豆射手",
+          "text": "案发当晚10点，我亲眼看到向日葵在仓库外，鬼鬼祟祟的。",
+          "is_contradiction": true,
+          "press": [
+            {
+              "q": "当时仓库附近的光线如何？你能看清她的脸吗？",
+              "a": "月光很亮，而且她转身时我看到了她脸上的花瓣纹路。",
+              "clue": "向日葵的花瓣碎片在仓库门口"
+            }
+          ],
+          "seat": "witness",
+          "portrait": "豌豆射手"
+        },
+        {
+          "id": "T02",
+          "speaker": "向日葵",
+          "text": "当时我正参加派对，监控可以证明，豌豆射手一定看错了。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "派对上有谁可以为你作证？",
+              "a": "坚果和樱桃炸弹都和我在一起跳舞。",
+              "clue": ""
+            }
+          ],
+          "seat": "defendant",
+          "portrait": "向日葵"
+        },
+        {
+          "id": "T03",
+          "speaker": "坚果",
+          "text": "派对很热闹，向日葵确实来了，但她中途离开了十分钟。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "她离开时是几点？说了去做什么吗？",
+              "a": "大约9点50分，她说去上厕所，但表情有点慌张。",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "坚果"
+        },
+        {
+          "id": "T04",
+          "speaker": "大嘴花",
+          "text": "我在仓库附近巡逻时，闻到了向日葵特有的气味。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "气味是从仓库里还是仓库外传来的？",
+              "a": "从仓库门口飘出来的，很浓，像是刚停留过。",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "大嘴花"
+        },
+        {
+          "id": "T05",
+          "speaker": "路灯花",
+          "text": "当晚仓库的灯坏了，我维修时看到门口有花瓣碎片。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "你维修时是几点？",
+              "a": "大概10点15分，那时派对还没结束。",
+              "clue": "向日葵的花瓣碎片出现在仓库门口"
+            }
+          ],
+          "seat": "witness",
+          "portrait": "路灯花"
+        },
+        {
+          "id": "T06",
+          "speaker": "樱桃炸弹",
+          "text": "派对上向日葵穿的是红色裙子，和她的花瓣颜色很搭。",
+          "is_contradiction": true,
+          "press": [
+            {
+              "q": "你确定她穿的是红色？监控里向日葵穿的是黄色裙子。",
+              "a": "哦，那我可能记错了，派对灯光太闪了。",
+              "clue": "红色裙子和监控中黄色裙子不符"
+            }
+          ],
+          "seat": "witness",
+          "portrait": "樱桃炸弹"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "E01",
+          "title": "派对监控记录",
+          "type": "监控记录",
+          "desc": "仓库派对监控显示，向日葵当晚10点整正在派对中央跳舞，衣着为黄色裙子。"
+        },
+        {
+          "id": "E02",
+          "title": "仓库时间戳",
+          "type": "监控录像",
+          "desc": "仓库门口监控显示，22:58分有人影经过，身着黄色裙子，但面部模糊。"
+        },
+        {
+          "id": "E03",
+          "title": "豌豆射手行程",
+          "type": "证人笔录",
+          "desc": "豌豆射手的手机定位记录显示，他当晚10:30才到达仓库附近区域。"
+        }
+      ],
+      "valid_objections": [
+        {
+          "testimony_id": "T01",
+          "evidence_id": "E01",
+          "reason": "证词称案发当晚10点看到向日葵在仓库外，但派对监控显示向日葵当晚10点整正在派对中央跳舞，地点冲突。"
+        },
+        {
+          "testimony_id": "T01",
+          "evidence_id": "E03",
+          "reason": "证词称当晚10点在仓库外看到向日葵，但豌豆射手的手机定位记录显示他当晚10:30才到达仓库附近区域，时间与行动能力冲突。"
+        },
+        {
+          "testimony_id": "T02",
+          "evidence_id": "E01",
+          "reason": "证词称当时正参加派对，监控可以证明，但证词本身是自我辩解，监控证据E01直接支持其表面真相，不过根据规则，E01作为反驳T01的证据已使用，此处仅列出与T02的间接支持关系，但需明确：T02与E01无矛盾，只是支持，因此不建立对应，仅保留T01的对应。"
+        },
+        {
+          "testimony_id": "T06",
+          "evidence_id": "E01",
+          "reason": "证词称派对上向日葵穿的是红色裙子，但监控显示她当晚10点整穿着黄色裙子，衣着颜色冲突。"
+        }
+      ],
+      "judge_comment": "豌豆射手，你的证词说向日葵深夜在仓库游荡，可监控显示它那时正在睡觉！难道你俩的时钟是不同次元的？",
+      "transition": {
+        "speaker": "豌豆射手",
+        "text": "哎呀，我记错了！是11点看到的，不是10点。但我发誓，当时向日葵绝对在仓库外，至于为什么监控里她在跳舞……可能她有分身术？反正我眼神好得很！",
+        "seat": "witness",
+        "portrait": "豌豆射手"
+      }
+    },
+    {
+      "testimonies": [
+        {
+          "id": "T07",
+          "speaker": "大嘴花",
+          "text": "我晚上都在睡觉，根本没去仓库那边。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "你睡觉时有没有听到什么声音？",
+              "a": "我睡得死，啥也没听到。",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "大嘴花"
+        },
+        {
+          "id": "T08",
+          "speaker": "樱桃炸弹",
+          "text": "大嘴花平时懒得很，半夜不可能去偷种子。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "你凭什么这么肯定？",
+              "a": "我住她隔壁，她每晚都打呼噜。",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "樱桃炸弹"
+        },
+        {
+          "id": "T09",
+          "speaker": "坚果",
+          "text": "仓库门锁完好无损，我没看到任何撬锁痕迹。",
+          "is_contradiction": true,
+          "press": [
+            {
+              "q": "那你检查过锁周围吗？",
+              "a": "我只看了锁眼，没注意旁边。",
+              "clue": "锁旁有巨大齿痕"
+            }
+          ],
+          "seat": "witness",
+          "portrait": "坚果"
+        },
+        {
+          "id": "T10",
+          "speaker": "寒冰射手",
+          "text": "我半夜巡逻时，看到仓库门缝里有亮光闪烁。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "那是几点的事？",
+              "a": "大概是凌晨一点左右。",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "寒冰射手"
+        },
+        {
+          "id": "T11",
+          "speaker": "向日葵",
+          "text": "我参加派对到很晚，根本没空去仓库。",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "那你有看到其他人接近仓库吗？",
+              "a": "没有，我一直待在派对里。",
+              "clue": ""
+            }
+          ],
+          "seat": "defendant",
+          "portrait": "向日葵"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "E11",
+          "title": "门锁齿痕照",
+          "type": "特殊物证",
+          "desc": "现场拍摄的仓库门锁照片显示，锁体上有两排清晰的巨大齿痕，与坚果声称的完好无损完全不符。"
+        },
+        {
+          "id": "E12",
+          "title": "大嘴花值班表",
+          "type": "工作记录",
+          "desc": "仓库值班记录显示，案发时段大嘴花被安排巡逻仓库区域，且其口腔内残留有金属碎屑。"
+        },
+        {
+          "id": "E13",
+          "title": "锁匠鉴定报告",
+          "type": "证人笔录",
+          "desc": "专业锁匠鉴定后指出，门锁是被外力咬合破坏，而非工具撬动，齿痕与植物咬合特征吻合。"
+        }
+      ],
+      "valid_objections": [
+        {
+          "testimony_id": "T09",
+          "evidence_id": "E11",
+          "reason": "证词声称仓库门锁完好无损，但门锁齿痕照显示锁体上有两排巨大齿痕，与完好状态直接冲突。"
+        },
+        {
+          "testimony_id": "T09",
+          "evidence_id": "E13",
+          "reason": "证词说未看到撬锁痕迹，但锁匠鉴定报告指出门锁被外力咬合破坏，存在明显破坏痕迹。"
+        },
+        {
+          "testimony_id": "T07",
+          "evidence_id": "E12",
+          "reason": "证词说晚上都在睡觉没去仓库，但值班记录显示大嘴花案发时段被安排巡逻仓库区域。"
+        }
+      ],
+      "judge_comment": "向日葵，你说你无辜？可你的花瓣碎片在仓库里‘自拍’，大嘴花叼走种子还留你‘名片’，这栽赃技术比你的光合作用还业余！",
+      "transition": {
+        "speaker": "坚果",
+        "text": "哎哟，我承认我看到那个大嘴花叼着门锁，但我觉得它是在练习新技能！它说‘咬碎它就算入门’，谁知道它真把门给咬开了啊！",
+        "seat": "witness",
+        "portrait": "坚果"
+      }
+    },
+    {
+      "testimonies": [
+        {
+          "id": "T12",
+          "speaker": "向日葵",
+          "text": "我当晚一直在花园东边浇水，根本没去仓库",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "有谁能证明你在浇水？",
+              "a": "小喷菇说看到我了，但它可能记不清",
+              "clue": ""
+            },
+            {
+              "q": "你浇水时看到路灯花了吗？",
+              "a": "没有，它那时候应该在西边巡逻",
+              "clue": ""
+            }
+          ],
+          "seat": "defendant",
+          "portrait": "向日葵"
+        },
+        {
+          "id": "T13",
+          "speaker": "路灯花",
+          "text": "我半夜巡逻时，看到一朵大花从仓库后门跳出来",
+          "is_contradiction": true,
+          "press": [
+            {
+              "q": "你之前为什么没报告这个发现？",
+              "a": "我当时没看清，怕冤枉好人",
+              "clue": "路灯花眼神闪烁，不自觉地摸了一下口袋"
+            }
+          ],
+          "seat": "witness",
+          "portrait": "路灯花"
+        },
+        {
+          "id": "T14",
+          "speaker": "大嘴花",
+          "text": "我那天晚上在睡觉，坚果可以作证",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "坚果后来改口了，你怎么解释？",
+              "a": "他一定是记错了，我们当时在聊天",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "大嘴花"
+        },
+        {
+          "id": "T15",
+          "speaker": "坚果",
+          "text": "我记性不好，但大嘴花确实说它要早睡",
+          "is_contradiction": false,
+          "press": [
+            {
+              "q": "你之前不是肯定说它在睡觉吗？",
+              "a": "我当时太困了，可能听错了",
+              "clue": ""
+            }
+          ],
+          "seat": "witness",
+          "portrait": "坚果"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "E21",
+          "title": "仓库监控",
+          "type": "监控录像",
+          "desc": "仓库后门监控显示，23:00至凌晨3:00期间没有任何大花进出，只有路灯花本人经过一次。"
+        },
+        {
+          "id": "E22",
+          "title": "口袋物品",
+          "type": "特殊物证",
+          "desc": "从路灯花口袋中找到一张纸条，写着'别多嘴，否则大嘴花会找你麻烦'，字迹潦草。"
+        },
+        {
+          "id": "E23",
+          "title": "巡逻记录",
+          "type": "工作记录",
+          "desc": "路灯花的夜间巡逻签到记录显示，当晚其巡逻路线未覆盖仓库后门区域。"
+        }
+      ],
+      "valid_objections": [
+        {
+          "testimony_id": "T13",
+          "evidence_id": "E21",
+          "reason": "证词说看到一朵大花从仓库后门跳出，但监控显示23:00至3:00期间没有任何大花进出，只有路灯花本人经过，时间与地点上直接冲突"
+        },
+        {
+          "testimony_id": "T13",
+          "evidence_id": "E23",
+          "reason": "证词说路灯花在半夜巡逻时看到大花从仓库后门跳出，但巡逻记录显示其巡逻路线未覆盖仓库后门区域，行为描述与事实冲突"
+        }
+      ],
+      "judge_comment": "路灯花，你自称是正义的化身，但你的证词却像你的光线一样，闪得让人看不清真相——时间线都错位了！",
+      "transition": {
+        "speaker": "路灯花",
+        "text": "好吧好吧，我承认我撒了谎！我没看到大花跳出来，其实是我自己半夜偷溜去仓库吃夜宵，结果被监控拍到了，怕被罚才编的瞎话！",
+        "seat": "witness",
+        "portrait": "路灯花"
+      }
+    }
+  ],
+  "truth": "大嘴花因嫉妒向日葵的受欢迎程度，在夜晚潜入仓库偷走了金阳光种子。它利用自己巨大的嘴部叼走种子后，故意留下向日葵的花瓣碎片制造监守自盗假象。路灯花在巡逻时目睹了其可疑行踪，最终在证据面前大嘴花认罪。",
+  "brief_comment": "三阶段案件，需三轮异议。R1推翻时间矛盾，R2揭露行为矛盾，R3揭露身份矛盾。",
+  "_meta": {
+    "real_criminal": "大嘴花",
+    "r1_cliffhanger": "豌豆射手声称看到向日葵深夜独自在仓库徘徊，但它的证词为何与监控时间对不上？",
+    "contradictions": [
+      {
+        "witness": "豌豆射手",
+        "type": "时间矛盾",
+        "surface_truth": "豌豆射手声称案发当晚10点看到向日葵在仓库外，但监控显示向日葵当时正在参加派对。",
+        "deep_truth": "豌豆射手其实是在11点看到的，它记错了时间，暗示有其他人利用了时间差。"
+      },
+      {
+        "witness": "坚果",
+        "type": "行为矛盾",
+        "surface_truth": "坚果坚称仓库门锁完好，但现场有巨大齿痕，暗示凶手曾用暴力破门。",
+        "deep_truth": "齿痕是大嘴花留下的，它用嘴叼断门锁后进入仓库。"
+      },
+      {
+        "witness": "路灯花",
+        "type": "身份矛盾",
+        "surface_truth": "路灯花作证说看到一朵大花从仓库跃出，但最初它隐瞒了目击事实。",
+        "deep_truth": "路灯花因害怕大嘴花报复而不敢作证，最终在压力下坦白，完整真相是大嘴花偷走了种子。"
+      }
+    ],
+    "difficulty": "normal",
+    "num_rounds": 3,
+    "fail_tolerance": 3,
+    "branches": {
+      "r1_success": [
+        {
+          "speaker": "豌豆射手",
+          "text": "我、我可能看错了，那天晚上仓库外光线太暗了。",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "豌豆射手",
+          "text": "但是我真的看到向日葵的影子在仓库门口晃悠！",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "豌豆射手",
+          "text": "好吧，其实我看到的是向日葵的白天照片，我自己记错时间了。",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "豌豆射手",
+          "text": "可仓库里确实有东西在动，不是向日葵是谁呢？",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "什么？这证词漏洞百出，简直是在浪费法庭时间！",
+          "emotion": "shocked"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "休庭！本法官需要去喝杯咖啡冷静一下再查。",
+          "emotion": "normal"
+        }
+      ],
+      "r1_fail": [
+        {
+          "speaker": "辣椒",
+          "text": "向日葵，你的证人连话都说不利索，还想翻案？",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "豌豆射手",
+          "text": "呼……幸亏没让我再吃一颗子弹。",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "但你别高兴太早，你的证词漏洞比我的辣度还大。",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "向日葵，你根本就是在拖延时间，认罪吧！",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "异议无效，法庭继续，下一个证人别打瞌睡。",
+          "emotion": "normal"
+        }
+      ],
+      "r2_success": [
+        {
+          "speaker": "路灯花",
+          "text": "我那天晚上明明看见大嘴花叼着种子溜达，还假装散步！",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "向日葵",
+          "text": "对，我花园里的花瓣碎片肯定是它故意留下的，我冤枉啊！",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "胡说！我嘴大就能乱咬人吗？这锅我不背！",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "好吧……是我偷的，谁让它天天被夸，我嫉妒得牙痒痒！",
+          "emotion": "nervous"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "啥？大嘴花你吃醋吃出刑事案件了？这反转辣眼睛！",
+          "emotion": "shocked"
+        },
+        {
+          "speaker": "向日葵",
+          "text": "呜呜，终于清白了，我以后种地得锁门防大嘴！",
+          "emotion": "relieved"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "大嘴花盗窃加诬陷，判你种半年太阳花田，劳动改造！",
+          "emotion": "normal"
+        }
+      ],
+      "r2_fail": [
+        {
+          "speaker": "辣椒",
+          "text": "两次失败，您这辩护水平真是让人笑掉大牙！",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "证据确凿，被告向日葵就是凶手，无需再审！",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "嘿嘿，这锅甩得真漂亮，我都不用动嘴。",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "本庭宣判：向日葵有罪，押下去晒太阳！",
+          "emotion": "normal"
+        }
+      ],
+      "r3_success": [
+        {
+          "speaker": "路灯花",
+          "text": "我亲眼看见大嘴花叼着种子，那嘴大得能塞下整个太阳！",
+          "emotion": "crying"
+        },
+        {
+          "speaker": "坚果",
+          "text": "大嘴花，你嘴太大，藏不住秘密，快认罪吧！",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "豌豆射手",
+          "text": "没错，那晚我听见你嚼东西的声音，不是种子是啥？",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "我嫉妒向日葵受欢迎，就偷了种子，还撒花瓣陷害她！",
+          "emotion": "crying"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "我嘴大心也大，但这次嘴大惹祸，我认了！",
+          "emotion": "crying"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "对不起向日葵，我错怪你了，辣椒我辣眼睛了！",
+          "emotion": "shocked"
+        },
+        {
+          "speaker": "向日葵",
+          "text": "没事，真相大白，我还是那个阳光灿烂的小可爱！",
+          "emotion": "relieved"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "向日葵无罪释放，大嘴花偷窃陷害罪名成立！",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "本庭宣判，正义虽迟但到，大家散了吧！",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "向日葵",
+          "text": "全场欢呼吧，我又能发光发热啦！",
+          "emotion": "happy"
+        }
+      ],
+      "r3_fail": [
+        {
+          "speaker": "辣椒",
+          "text": "向日葵，你的三次狡辩都像被烤焦的叶子一样脆弱！",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "辣椒",
+          "text": "证据确凿如阳光普照，你的谎言早已无处遁形。",
+          "emotion": "angry"
+        },
+        {
+          "speaker": "大嘴花",
+          "text": "嘿嘿，这朵傻花终于要枯萎了，我可真开心呀。",
+          "emotion": "smug"
+        },
+        {
+          "speaker": "坚果",
+          "text": "我明明没看到大嘴花动嘴，怎么向日葵就成凶手了？",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "本庭宣判，向日葵犯故意伤害罪，押入花园监狱。",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "倭瓜",
+          "text": "立即执行，不得上诉，退庭吧。",
+          "emotion": "normal"
+        },
+        {
+          "speaker": "向日葵",
+          "text": "我的花瓣在凋零，而真正的恶魔在黑暗中狂笑。",
+          "emotion": "despair"
+        }
+      ]
+    }
+  }
+};
+
+        function render() {
+            const data = typeof CASE_DATA === 'string' ? JSON.parse(CASE_DATA) : CASE_DATA;
+
+            // 标题
+            document.getElementById('title').textContent = data.title || '未知案件';
+            document.getElementById('type-location').textContent = 
+                `${data.type || '未知类型'} · ${data.location || '未知地点'}`;
+
+            // 信息网格
+            const meta = data._meta || {};
+            const infoItems = [
+                { label: '案件ID', value: data.id || '-' },
+                { label: '复杂度', value: '★'.repeat(data.complexity || 1) },
+                { label: '审判轮数', value: `${meta.num_rounds || data.phases?.length || '?'} 轮` },
+                { label: '真凶', value: meta.real_criminal || '?', isCriminal: true }
+            ];
+            const grid = document.getElementById('info-grid');
+            infoItems.forEach(item => {
+                grid.innerHTML += `
+                    <div class="info-item">
+                        <div class="info-label">${item.label}</div>
+                        <div class="info-value ${item.isCriminal ? 'criminal' : ''}">${item.value}</div>
+                    </div>`;
+            });
+
+            // 真相
+            document.getElementById('truth').textContent = data.truth || '真相未知...';
+
+            // 嫌疑人
+            const suspectsDiv = document.getElementById('suspects');
+            (data.suspects || []).forEach(s => {
+                const isCriminal = s.name === meta.real_criminal;
+                suspectsDiv.innerHTML += `
+                    <div class="suspect-card ${isCriminal ? 'is-criminal' : ''}">
+                        <div class="suspect-name">${s.name}</div>
+                        <div class="suspect-role">${s.role || '?'}</div>
+                        <div class="suspect-motive">${s.motive || '?'}</div>
+                        ${isCriminal ? '<span class="badge badge-criminal">真凶</span>' : ''}
+                    </div>`;
+            });
+
+            // 阶段
+            const phasesDiv = document.getElementById('phases');
+            (data.phases || []).forEach((phase, i) => {
+                const tests = phase.testimonies || [];
+                const evs = phase.evidence || [];
+                const contra = tests.filter(t => t.is_contradiction).length;
+                phasesDiv.innerHTML += `
+                    <div class="phase-card">
+                        <div class="phase-header">
+                            <span class="phase-title">Phase ${i + 1}</span>
+                            <div class="stats">
+                                <span class="stat"><span class="stat-label">证词</span> <span class="stat-value">${tests.length}</span></span>
+                                <span class="stat"><span class="stat-label">矛盾</span> <span class="stat-value">${contra}</span></span>
+                                <span class="stat"><span class="stat-label">证据</span> <span class="stat-value">${evs.length}</span></span>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        render();
+    </script>
+</body>
+</html>
