@@ -1,6 +1,6 @@
 # Plants_vs._Zombies
 # 植物大战僵尸 —— 邱浩洋
-# PyInstaller -F --hidden-import=pygame --paths C:\Users\xiaot\myenv\Lib\site-packages launcher.py
+# PyInstaller -F --add-data "assets;assets" launcher.py
 
 import pygame
 from pygame.locals import *
@@ -767,6 +767,10 @@ class MainMenu:
         return t * (2 - t)
 
 if __name__ == '__main__':
+    # 切换工作目录到脚本所在目录，确保相对路径资产可被加载
+    script_dir = Path(__file__).resolve().parent
+    os.chdir(script_dir)
+
     try:
         # 先显示启动前的商标界面
         splash = SplashScreen()
