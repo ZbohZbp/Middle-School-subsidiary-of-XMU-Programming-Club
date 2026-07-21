@@ -3,6 +3,8 @@
 
 import pygame
 import sys
+import random
+import math
 
 # --- 初始化 Pygame ---
 pygame.init()
@@ -97,6 +99,7 @@ class ShunFengEr(pygame.sprite.Sprite):
         self.attack_phase = 0 # 0: 未攻击, 1: 第一阶段(斜下), 2: 第二阶段(斜上)
         self.is_air_attack = False # 标记当前是否为空中攻击
         self.attack_hit_done = False # 本次攻击是否已造成伤害
+        self.dead = False # 是否死亡
 
     def jump(self):
         """处理跳跃逻辑"""
@@ -189,12 +192,43 @@ class ShunFengEr(pygame.sprite.Sprite):
 
         if self.get_attack_hitbox().colliderect(target.rect):
             target.hp = max(0, target.hp - ATTACK_DAMAGE)
+            if target.hp <= 0:
+                target.dead = True
             self.attack_hit_done = True
+
+    def reset(self):
+        """重置角色到初始状态"""
+        self.rect.center = (100, SCREEN_HEIGHT - 150)
+        self.vel_y = 0
+        self.on_ground = False
+        self.jump_count = 0
+        self.hp = HP_MAX
+        self.energy = ENERGY_MAX
+        self.last_update_time = pygame.time.get_ticks()
+        self.dash_cooldown = 0.0
+        self.facing = 1
+        self.attack_cooldown = 0.0
+        self.is_attacking = False
+        self.attack_timer = 0.0
+        self.attack_phase = 0
+        self.is_air_attack = False
+        self.attack_hit_done = False
+        self.dead = False
 
     def update(self, platforms, targets=None):
         current_time = pygame.time.get_ticks()
         time_passed = (current_time - self.last_update_time) / 1000.0
         self.last_update_time = current_time
+
+        if self.dead:
+            # 死亡后只受重力下落，不做其他更新
+            self.vel_y += GRAVITY
+            self.rect.y += self.vel_y
+            # 掉落出屏幕后防止继续下坠
+            if self.rect.top > SCREEN_HEIGHT + 100:
+                self.rect.y = SCREEN_HEIGHT + 100
+                self.vel_y = 0
+            return
         
         # 1. 血量恢复
         if self.hp < HP_MAX:
@@ -236,7 +270,8 @@ class ShunFengEr(pygame.sprite.Sprite):
         # 5. 处理攻击命中判定（在移动前后都可以，但这里放在移动前更直观）
         if targets:
             for target in targets:
-                self.try_damage_target(target)
+                if not target.dead:  # 不攻击已死亡的敌人
+                    self.try_damage_target(target)
 
         # 6. 水平移动与朝向更新
         keys = pygame.key.get_pressed()
@@ -297,6 +332,7 @@ class MuZhuang(pygame.sprite.Sprite):
         # 技能系统（木桩没有闪现和攻击，所以不需要相关属性）
         # 朝向系统: 1 表示向右, -1 表示向左
         self.facing = 1 
+        self.dead = False # 是否死亡
 
     def jump(self):
         """处理跳跃逻辑（与顺风耳完全相同）"""
@@ -320,11 +356,32 @@ class MuZhuang(pygame.sprite.Sprite):
                     return False
         return False
 
+    def reset(self):
+        """重置木桩到初始状态"""
+        self.rect.center = (700, SCREEN_HEIGHT - 150)
+        self.vel_y = 0
+        self.on_ground = False
+        self.jump_count = 0
+        self.hp = HP_MAX
+        self.energy = ENERGY_MAX
+        self.last_update_time = pygame.time.get_ticks()
+        self.facing = 1
+        self.dead = False
+
     def update(self, platforms):
         """更新木桩状态（仅包含移动、跳跃、血量和能量恢复，无攻击和闪现）"""
         current_time = pygame.time.get_ticks()
         time_passed = (current_time - self.last_update_time) / 1000.0
         self.last_update_time = current_time
+
+        if self.dead:
+            # 死亡后只受重力下落
+            self.vel_y += GRAVITY
+            self.rect.y += self.vel_y
+            if self.rect.top > SCREEN_HEIGHT + 100:
+                self.rect.y = SCREEN_HEIGHT + 100
+                self.vel_y = 0
+            return
         
         # 1. 血量恢复（与顺风耳相同）
         if self.hp < HP_MAX:
@@ -382,14 +439,37 @@ class Platform(pygame.sprite.Sprite):
         self.rect.x = x
         self.rect.y = y
 
+# --- 字体缓存 ---
+_font_cache = {}
+
 def get_font(size):
-    font_names = ['microsoftyahei', 'msyh', 'simhei', 'simsun', 'arial']
-    for name in font_names:
+    """获取缓存的字体对象，避免每帧重复创建"""
+    if size in _font_cache:
+        return _font_cache[size]
+    
+    # 优先使用系统中的中文字体
+    font_paths = [
+        "C:/Windows/Fonts/msyh.ttc",    # 微软雅黑
+        "C:/Windows/Fonts/simhei.ttf",   # 黑体
+        "C:/Windows/Fonts/simsun.ttc",   # 宋体
+    ]
+    font = None
+    for path in font_paths:
         try:
-            return pygame.font.SysFont(name, size)
-        except:
+            font = pygame.font.Font(path, size)
+            break
+        except FileNotFoundError:
             continue
-    return pygame.font.Font(None, size)
+    
+    if font is None:
+        # 回退：尝试通过 SysFont 找到中文字体
+        try:
+            font = pygame.font.SysFont('microsoftyahei', size)
+        except:
+            font = pygame.font.Font(None, size)
+    
+    _font_cache[size] = font
+    return font
 
 # 修改：draw_ui 函数现在需要绘制两个角色的UI
 def draw_ui(screen, shunfeng, muzhuang):
@@ -470,7 +550,7 @@ def draw_ui(screen, shunfeng, muzhuang):
     screen.blit(dash_label, (skill_x + 40, skill_y + 5))
     
     # Attack 技能
-    attack_x = skill_x + 80
+    attack_x = skill_x + 120
     attack_rect = pygame.Rect(attack_x, skill_y, skill_box_size, skill_box_size)
     if shunfeng.attack_cooldown > 0:
         attack_color = GRAY
@@ -544,47 +624,40 @@ def draw_ui(screen, shunfeng, muzhuang):
     # 木桩没有技能图标区域
 
 
+# --- 刀光缓存（预渲染，避免每帧创建 Surface）---
+_SLASH_WIDTH = 50
+_SLASH_HEIGHT = 70
+
+# 预创建两个阶段的刀光表面
+_slash_phase1_surf = pygame.Surface((_SLASH_WIDTH, _SLASH_HEIGHT), pygame.SRCALPHA)
+pygame.draw.line(_slash_phase1_surf, WHITE, (0, 0), (_SLASH_WIDTH, _SLASH_HEIGHT), 8)
+pygame.draw.line(_slash_phase1_surf, CYAN, (0, 0), (_SLASH_WIDTH, _SLASH_HEIGHT), 4)
+
+_slash_phase2_surf = pygame.Surface((_SLASH_WIDTH, _SLASH_HEIGHT), pygame.SRCALPHA)
+pygame.draw.line(_slash_phase2_surf, GOLD, (0, _SLASH_HEIGHT), (_SLASH_WIDTH, 0), 8)
+pygame.draw.line(_slash_phase2_surf, WHITE, (0, _SLASH_HEIGHT), (_SLASH_WIDTH, 0), 4)
+
+# 预创建翻转后的版本
+_slash_phase1_flipped = pygame.transform.flip(_slash_phase1_surf, True, False)
+_slash_phase2_flipped = pygame.transform.flip(_slash_phase2_surf, True, False)
+
 def draw_attack_effect(screen, player):
     """绘制攻击刀光效果（仅对顺风耳有效）"""
     if not player.is_attacking:
         return
-    
-    # 刀光参数
-    slash_width = 50
-    slash_height = 70 
-    
-    # 根据阶段决定颜色和角度
-    # 注意：空中攻击直接是 phase 2
-    if player.attack_phase == 1:
-        color = WHITE
-        # 第一阶段：斜向下
-        start_pos = (0, 0)
-        end_pos = (slash_width, slash_height)
-    else: # phase 2
-        color = GOLD
-        # 第二阶段：斜向上
-        start_pos = (0, slash_height)
-        end_pos = (slash_width, 0)
 
-    offset_x = 10 if player.facing == 1 else -10 - slash_width
-    offset_y = -10 # 稍微向上偏移一点，使其看起来更像挥砍
+    # 选择预渲染的刀光表面
+    if player.attack_phase == 1:
+        slash_surface = _slash_phase1_flipped if player.facing == -1 else _slash_phase1_surf
+    else:
+        slash_surface = _slash_phase2_flipped if player.facing == -1 else _slash_phase2_surf
+
+    offset_x = 10 if player.facing == 1 else -10 - _SLASH_WIDTH
+    offset_y = -10
     
-    # 计算刀光位置（相对于角色中心）
     slash_x = player.rect.centerx + offset_x
-    slash_y = player.rect.centery - slash_height // 2 + offset_y
-    
-    # 创建刀光表面
-    slash_surface = pygame.Surface((slash_width, slash_height), pygame.SRCALPHA)
-    
-    # 绘制更粗的线条以增加可见度
-    pygame.draw.line(slash_surface, color, start_pos, end_pos, 8)
-    # 添加一个内部亮线增加层次感
-    pygame.draw.line(slash_surface, CYAN if player.attack_phase == 1 else WHITE, start_pos, end_pos, 4)
-    
-    # 如果朝向左，翻转图像
-    if player.facing == -1:
-        slash_surface = pygame.transform.flip(slash_surface, True, False)
-        
+    slash_y = player.rect.centery - _SLASH_HEIGHT // 2 + offset_y
+
     screen.blit(slash_surface, (slash_x, slash_y))
 
 
@@ -636,6 +709,7 @@ def draw_instructions(screen, show_instructions, current_page):
                 "[↑]       : 跳跃 / 二段跳",
                 "",
                 "[P]       : 切换此面板",
+                "[R]       : 重新开始 (胜利后)",
                 "[ESC]     : 退出游戏",
                 "",
                 "提示:",
@@ -702,6 +776,95 @@ def draw_instructions(screen, show_instructions, current_page):
     screen.blit(next_hint, (panel_x + panel_width - 15 - next_hint.get_width(), footer_y_center - next_hint.get_height()//2))
 
 
+# --- 胜利动画 ---
+class VictoryParticle:
+    """胜利画面的粒子特效"""
+    def __init__(self):
+        self.x = random.randint(0, SCREEN_WIDTH)
+        self.y = random.randint(0, SCREEN_HEIGHT)
+        self.vx = random.uniform(-2, 2)
+        self.vy = random.uniform(-3, -0.5)
+        self.size = random.randint(3, 8)
+        self.color = random.choice([GOLD, YELLOW, WHITE, CYAN, ORANGE, (255, 100, 255)])
+        self.life = random.uniform(1.0, 3.0)
+        self.max_life = self.life
+
+    def update(self, dt):
+        self.x += self.vx
+        self.y += self.vy
+        self.vy += 0.05  # 轻微重力
+        self.life -= dt
+        return self.life > 0
+
+    def draw(self, screen):
+        alpha = max(0, int(255 * (self.life / self.max_life)))
+        size = max(1, int(self.size * (self.life / self.max_life)))
+        color = (*self.color[:3], alpha)
+        s = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+        pygame.draw.circle(s, color, (size, size), size)
+        screen.blit(s, (int(self.x - size), int(self.y - size)))
+
+
+_victory_particles = []
+_victory_timer = 0
+
+
+def spawn_victory_particles():
+    """生成新的粒子"""
+    for _ in range(3):
+        _victory_particles.append(VictoryParticle())
+
+
+def draw_victory_screen(screen, winner_name, dt):
+    """绘制胜利画面"""
+    global _victory_timer
+    _victory_timer += dt
+
+    # 1. 半透明暗色遮罩
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 160))
+    screen.blit(overlay, (0, 0))
+
+    # 2. 粒子特效
+    spawn_victory_particles()
+    _victory_particles[:] = [p for p in _victory_particles if p.update(dt)]
+    for p in _victory_particles:
+        p.draw(screen)
+
+    # 3. 胜利文字（带缩放脉冲动画）
+    pulse = 1.0 + 0.05 * math.sin(_victory_timer * 3)
+
+    # 获胜者名称
+    win_font_large = get_font(int(72 * pulse))
+    win_text = win_font_large.render(f"{winner_name} 胜利！", True, GOLD)
+    win_rect = win_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 40))
+    # 添加发光效果（通过多次绘制）
+    for dx, dy in [(-2, -2), (2, -2), (-2, 2), (2, 2), (0, 0)]:
+        glow_color = (255, 215, 0, 100) if (dx, dy) != (0, 0) else GOLD
+        glow_surf = get_font(int(72 * pulse)).render(f"{winner_name} 胜利！", True, glow_color)
+        screen.blit(glow_surf, (win_rect.x + dx, win_rect.y + dy))
+
+    # 副标题
+    sub_font = get_font(24)
+    sub_text = sub_font.render("精彩的对决！", True, WHITE)
+    sub_rect = sub_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 30))
+    screen.blit(sub_text, sub_rect)
+
+    # 4. 重新开始提示（闪烁效果）
+    if int(_victory_timer * 2) % 2 == 0:
+        restart_font = get_font(28)
+        restart_text = restart_font.render("按 [R] 重新开始  |  按 [ESC] 退出", True, WHITE)
+        restart_rect = restart_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 90))
+        screen.blit(restart_text, restart_rect)
+
+
+def reset_victory():
+    """重置胜利动画状态"""
+    global _victory_particles, _victory_timer
+    _victory_particles.clear()
+    _victory_timer = 0
+
+
 def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Python RPG: 双角色测试 - 顺风耳 vs 木桩")
@@ -733,9 +896,16 @@ def main():
     hint_start_time = pygame.time.get_ticks()
     hint_duration = 3000 
 
+    # 胜利状态
+    game_over = False
+    winner_name = ""
+    victory_start_time = 0
+
     running = True
     while running:
         current_time = pygame.time.get_ticks()
+        clock_tick = clock.tick(FPS)
+        dt = clock_tick / 1000.0  # 转换为秒
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -743,6 +913,19 @@ def main():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
+                
+                if game_over:
+                    # 胜利后的重新开始
+                    if event.key == pygame.K_r:
+                        shunfeng.reset()
+                        muzhuang.reset()
+                        game_over = False
+                        winner_name = ""
+                        show_hint = True
+                        hint_start_time = pygame.time.get_ticks()
+                        reset_victory()
+                    continue
+
                 # 顺风耳的控制
                 if event.key == pygame.K_w:
                     shunfeng.jump()
@@ -768,35 +951,50 @@ def main():
                         if current_page < 1:
                             current_page += 1
 
-        # 更新两个角色状态
-        shunfeng.update(platforms, [muzhuang])
-        muzhuang.update(platforms)
+        if not game_over:
+            # 更新两个角色状态
+            shunfeng.update(platforms, [muzhuang])
+            muzhuang.update(platforms)
+
+            # 检查是否有角色死亡（使用 dead 标记，避免 HP 恢复干扰判定）
+            if shunfeng.dead:
+                game_over = True
+                winner_name = "木桩"
+                victory_start_time = current_time
+            elif muzhuang.dead:
+                game_over = True
+                winner_name = "顺风耳"
+                victory_start_time = current_time
 
         screen.fill(BLUE)
-        all_sprites.draw(screen)
         
-        # 绘制攻击特效（仅顺风耳有）
-        draw_attack_effect(screen, shunfeng)
-        
-        # 绘制 UI（需要传入两个角色）
-        draw_ui(screen, shunfeng, muzhuang)
-        
-        # 绘制帮助面板
-        draw_instructions(screen, show_instructions, current_page)
-        
-        # 绘制初始提示
-        if show_hint and current_time - hint_start_time < hint_duration:
-            hint_font = get_font(24)
-            hint_text = hint_font.render("按 [P] 查看帮助 | 顺风耳: [W][A][D][H][J] | 木桩: [↑][←][→]", True, BLACK)
-            hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, 50))
+        if not game_over:
+            all_sprites.draw(screen)
             
-            hint_bg = pygame.Surface((hint_rect.width + 20, hint_rect.height + 10), pygame.SRCALPHA)
-            hint_bg.fill((255, 255, 255, 180))
-            screen.blit(hint_bg, (hint_rect.x - 10, hint_rect.y - 5))
-            screen.blit(hint_text, hint_rect)
+            # 绘制攻击特效（仅顺风耳有）
+            draw_attack_effect(screen, shunfeng)
+            
+            # 绘制 UI（需要传入两个角色）
+            draw_ui(screen, shunfeng, muzhuang)
+            
+            # 绘制帮助面板
+            draw_instructions(screen, show_instructions, current_page)
+            
+            # 绘制初始提示
+            if show_hint and current_time - hint_start_time < hint_duration:
+                hint_font = get_font(24)
+                hint_text = hint_font.render("按 [P] 查看帮助 | 顺风耳: [W][A][D][H][J] | 木桩: [↑][←][→]", True, BLACK)
+                hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, 50))
+                
+                hint_bg = pygame.Surface((hint_rect.width + 20, hint_rect.height + 10), pygame.SRCALPHA)
+                hint_bg.fill((255, 255, 255, 180))
+                screen.blit(hint_bg, (hint_rect.x - 10, hint_rect.y - 5))
+                screen.blit(hint_text, hint_rect)
+        else:
+            # 绘制胜利画面
+            draw_victory_screen(screen, winner_name, dt)
 
         pygame.display.flip()
-        clock.tick(FPS)
 
     pygame.quit()
     sys.exit()
