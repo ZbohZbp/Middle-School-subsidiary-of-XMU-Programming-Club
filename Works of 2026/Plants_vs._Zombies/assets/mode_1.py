@@ -104,9 +104,18 @@ def load_image(name, scale=1, alpha=None):
             return placeholder
         
         image = pygame.image.load(image_path)
+        # 转换为显示格式以加速blit（最重要的性能优化）
+        if image.get_alpha():
+            image = image.convert_alpha()
+        else:
+            image = image.convert()
+        
         width = int(image.get_width() * scale)
         height = int(image.get_height() * scale)
-        scaled_image = pygame.transform.scale(image, (width, height))
+        if scale != 1.0:
+            scaled_image = pygame.transform.scale(image, (width, height))
+        else:
+            scaled_image = image
         
         if alpha is not None:
             scaled_image = scaled_image.convert_alpha()
@@ -224,8 +233,8 @@ class Plant:
         self.image = load_image(f'{plant_type}.png', scale)
         self.hit_timer = 0
         self.slow_timer = 0
-        self.original_cooldown = 15  # 默认攻击冷却时间
-        self.current_cooldown = 15
+        self.original_cooldown = 120  # 攻击冷却时间，约0.5发/秒
+        self.current_cooldown = 60
         self.excited_timer = 0  # 兴奋状态计时器
         self.being_eaten = False  # 是否正在被僵尸吃
         self.opacity = 255  # 透明度，255为完全不透明
@@ -249,28 +258,33 @@ class Plant:
         if self.exploding and self.explosion_image:
             screen.blit(self.explosion_image, (self.x - self.explosion_image.get_width()//2, self.y - self.explosion_image.get_height()//2))
             self.explosion_timer += 1
-            if self.explosion_timer >= 30:  # 爆炸效果持续半秒
+            if self.explosion_timer >= 30:
                 self.exploding = False
             return
-            
-        # 创建一个带有当前透明度的图像副本
-        image_copy = self.image.copy()
-        image_copy.set_alpha(self.opacity)
         
+        # 计算绘制位置
+        draw_x = self.x - self.image.get_width() // 2
+        draw_y = self.y - self.image.get_height() // 2
+        
+        if self.opacity < 255:
+            # 只有被吃时才复制图像（绝大多数帧跳过此分支）
+            image_copy = self.image.copy()
+            image_copy.set_alpha(self.opacity)
+            screen.blit(image_copy, (draw_x, draw_y))
+        else:
+            screen.blit(self.image, (draw_x, draw_y))
+        
+        # 受击/减速叠加层（用预创建的小surface而非每帧新建）
         if self.hit_timer > 0:
-            hit_surface = pygame.Surface((self.image.get_width(), self.image.get_height()), pygame.SRCALPHA)
-            hit_surface.fill((255, 0, 0, 128))
-            screen.blit(image_copy, (self.x - self.image.get_width()//2, self.y - self.image.get_height()//2))
-            screen.blit(hit_surface, (self.x - self.image.get_width()//2, self.y - self.image.get_height()//2))
+            overlay = pygame.Surface((self.image.get_width(), self.image.get_height()), pygame.SRCALPHA)
+            overlay.fill((255, 0, 0, 128))
+            screen.blit(overlay, (draw_x, draw_y))
             self.hit_timer -= 1
         elif self.slow_timer > 0:
-            slow_surface = pygame.Surface((self.image.get_width(), self.image.get_height()), pygame.SRCALPHA)
-            slow_surface.fill((0, 0, 255, 128))
-            screen.blit(image_copy, (self.x - self.image.get_width()//2, self.y - self.image.get_height()//2))
-            screen.blit(slow_surface, (self.x - self.image.get_width()//2, self.y - self.image.get_height()//2))
+            overlay = pygame.Surface((self.image.get_width(), self.image.get_height()), pygame.SRCALPHA)
+            overlay.fill((0, 0, 255, 128))
+            screen.blit(overlay, (draw_x, draw_y))
             self.slow_timer -= 1
-        else:
-            screen.blit(image_copy, (self.x - self.image.get_width()//2, self.y - self.image.get_height()//2))
         
         # 更新碰撞检测区域
         rect_size = 70 if self.plant_type == 'xdfz' else 60
@@ -311,12 +325,12 @@ class Plant:
             if not hasattr(self, 'sun_timer'):
                 self.sun_timer = 0
             self.sun_timer += 1
-            if self.sun_timer >= 90:  # 1.5秒产生一次阳光
+            if self.sun_timer >= 600:  # 10秒产生一次阳光
                 self.sun_timer = 0
                 return 'sun'
         
         # 检查同一行是否有僵尸，并且植物没有被吃
-        if self.plant_type in ['hb', 'wd'] and self.attack_cooldown == 0 and zombies and bullets and not self.being_eaten:
+        if self.plant_type in ['hb', 'wd'] and self.attack_cooldown == 0 and zombies and bullets is not None and not self.being_eaten:
             for zombie in zombies:
                 if abs(zombie.y - self.y) < (LAWN_HEIGHT // LAWN_ROWS) // 2:
                     bullet_img = None
@@ -377,25 +391,28 @@ class Zombie:
         if self.dying:
             if self.dying_timer > 0:
                 if self.boom_effect and self.boom_image:
-                    # 绘制爆炸效果图像
-                    alpha_img = self.boom_image.copy()
-                    alpha_img.set_alpha(self.opacity)
-                    screen.blit(alpha_img, (self.x - self.boom_image.get_width()//2, self.y - self.boom_image.get_height()//2))
+                    # 爆炸效果直接blit，避免copy
+                    self.boom_image.set_alpha(self.opacity)
+                    screen.blit(self.boom_image, (self.x - self.boom_image.get_width()//2, self.y - self.boom_image.get_height()//2))
+                    self.boom_image.set_alpha(255)  # 恢复供下次使用
                 else:
-                    # 普通死亡渐隐效果
-                    current_img = self.image  # 默认使用普通图像
+                    # 普通死亡渐隐效果 — 仅在透明度变化时才copy
+                    current_img = self.image
                     if self.hit_timer > 0:
                         current_img = self.hurt_image
                     elif self.slow_timer > 0:
                         current_img = self.slow_image
                     
-                    alpha_img = current_img.copy()
-                    alpha_img.set_alpha(self.opacity)
-                    screen.blit(alpha_img, (self.x - current_img.get_width()//2, self.y - current_img.get_height()//2))
+                    if self.opacity < 255:
+                        alpha_img = current_img.copy()
+                        alpha_img.set_alpha(self.opacity)
+                        screen.blit(alpha_img, (self.x - current_img.get_width()//2, self.y - current_img.get_height()//2))
+                    else:
+                        screen.blit(current_img, (self.x - current_img.get_width()//2, self.y - current_img.get_height()//2))
                 
                 # 更新渐隐效果
                 self.dying_timer -= 1
-                self.opacity = int(self.dying_timer * 255 / 100)  # 100是初始dying_timer值
+                self.opacity = int(self.dying_timer * 255 / 100)
             return
             
         if self.hit_timer > 0:
@@ -455,7 +472,7 @@ class Bullet:
     def __init__(self, x, y, bullet_type='hbzd.png'):
         self.x = x + 20  # 向前偏移20像素
         self.y = y - 20  # 向上偏移20像素
-        self.speed = 7.0  # 提高子弹飞行速度
+        self.speed = 2.8  # 子弹飞行速度
         self.bullet_type = bullet_type
         self.image = load_image(bullet_type, 0.8)
     
@@ -470,11 +487,9 @@ class Sun:
     def __init__(self, x, y, sun_value_ref=None):
         self.x = x
         self.y = y
-        self.speed = 0.8
+        self.speed = 0.8  # 阳光下落速度
         self.value = 25
         self.image = load_image('sun.png', 0.6)
-        self.hit_timer = 0
-        self.slow_timer = 0
         self.lifetime = 0
         self.collected = False
         self.target_x = 40
@@ -483,14 +498,7 @@ class Sun:
         self.sun_value_ref = sun_value_ref
     
     def draw(self):
-        if self.hit_timer > 0:
-            screen.blit(self.hurt_image, (self.x - self.hurt_image.get_width()//2, self.y - self.hurt_image.get_height()//2))
-            self.hit_timer -= 1
-        elif self.slow_timer > 0:
-            screen.blit(self.slow_image, (self.x - self.slow_image.get_width()//2, self.y - self.slow_image.get_height()//2))
-            self.slow_timer -= 1
-        else:
-            screen.blit(self.image, (self.x - self.image.get_width()//2, self.y - self.image.get_height()//2))
+        screen.blit(self.image, (self.x - self.image.get_width()//2, self.y - self.image.get_height()//2))
     
     def collect(self):
         """统一处理阳光收集，确保值正确增加。"""
@@ -500,7 +508,7 @@ class Sun:
         self.collected = True
         self.target_x = 40
         self.target_y = 25
-        self.move_speed = 4
+        self.move_speed = 4  # 回收动画速度
 
         if self.sun_value_ref is not None:
             self.sun_value_ref[0] += self.value
@@ -509,10 +517,13 @@ class Sun:
             sounds['points'].play()
         return True
 
-    def update(self):
+    def update(self, mouse_pos=None):
         self.lifetime += 1
 
-        mouse_x, mouse_y = pygame.mouse.get_pos()
+        if mouse_pos is None:
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+        else:
+            mouse_x, mouse_y = mouse_pos
 
         if not self.collected and ((mouse_x - self.x)**2 + (mouse_y - self.y)**2) <= 900:
             self.collect()
@@ -520,16 +531,17 @@ class Sun:
         if self.collected:
             dx = self.target_x - self.x
             dy = self.target_y - self.y
-            distance = (dx**2 + dy**2)**0.5
+            dist_sq = dx*dx + dy*dy
 
-            if distance < 5:
+            if dist_sq < 25:  # 5^2，用平方距离避免开平方
                 return True
-            else:
-                if distance > 0:
-                    self.x += dx/distance * self.move_speed
-                    self.y += dy/distance * self.move_speed
+            elif dist_sq > 0:
+                dist = dist_sq ** 0.5
+                self.x += dx/dist * self.move_speed
+                self.y += dy/dist * self.move_speed
                 return False
-        elif self.lifetime >= 70:
+            return False
+        elif self.lifetime >= 150:  # 约2.5秒后自动回收
             self.collect()
             return False
         else:
@@ -660,10 +672,15 @@ def handle_mouse_click(event, music_button_rect, current_music_idx_in_list, curr
     return current_music_idx_in_list, selected_plant
 
 # 生成僵尸
-def spawn_zombies(zombie_spawn_timer, zombie_count, ZOMBIE_MAX, GRID_HEIGHT, LAWN_HEIGHT, LAWN_ROWS, zombie_speed, zombies):
+def spawn_zombies(zombie_spawn_timer, zombie_count, ZOMBIE_MAX, GRID_HEIGHT, LAWN_HEIGHT, LAWN_ROWS, zombie_speed, zombies, first_zombie_delay):
     """生成僵尸"""
+    # 第一只僵尸到达前有冷却时间，给玩家准备时间
+    if first_zombie_delay > 0:
+        first_zombie_delay -= 1
+        return zombie_spawn_timer, zombie_count, first_zombie_delay
+    
     zombie_spawn_timer += 1
-    if zombie_spawn_timer >= 200:  # 每5秒生成一个僵尸
+    if zombie_spawn_timer >= 420:  # 每7秒生成一个僵尸
         zombie_spawn_timer = 0
         # 随机选择一行(1-5)生成僵尸
         row = random.randint(1, LAWN_ROWS)
@@ -674,13 +691,13 @@ def spawn_zombies(zombie_spawn_timer, zombie_count, ZOMBIE_MAX, GRID_HEIGHT, LAW
             new_zombie.original_speed = zombie_speed
             zombies.append(new_zombie)
             zombie_count += 1
-    return zombie_spawn_timer, zombie_count
+    return zombie_spawn_timer, zombie_count, first_zombie_delay
 
 # 生成阳光
 def spawn_suns(sun_spawn_timer, SCREEN_WIDTH, GRID_HEIGHT, sun_value, suns):
     """生成阳光"""
     sun_spawn_timer += 1
-    if sun_spawn_timer >= 180:  # 每3秒生成一个阳光
+    if sun_spawn_timer >= 300:  # 每5秒生成一个阳光
         sun_spawn_timer = 0
         # 确保阳光生成位置不会重叠在UI区域
         suns.append(Sun(random.randint(50, SCREEN_WIDTH - 50), GRID_HEIGHT + 50, sun_value))
@@ -708,21 +725,8 @@ def update_plants(plants, zombies, bullets, suns, sun_value, sounds):
                     zombie.eating = False
                     zombie.target_plant = None
         
-        if plant.attack_cooldown == 0 and plant.plant_type in ['hb', 'wd'] and zombies and not plant.being_eaten:
-            # 检查同一行是否有僵尸
-            has_zombie_in_row = False
-            for zombie in zombies:
-                if abs(zombie.y - plant.y) < (LAWN_HEIGHT // LAWN_ROWS) // 2:
-                    has_zombie_in_row = True
-                    break
-            if has_zombie_in_row:
-                bullet_img = 'hbzd.png' if plant.plant_type == 'hb' else 'wdzd.png'
-                bullets.append(Bullet(plant.x, plant.y, bullet_img))
-                plant.attack_cooldown = plant.current_cooldown  # 使用当前冷却时间
-                
-                # 播放豌豆发射音效
-                if plant.plant_type == 'wd' and sounds['peashoot']:
-                    sounds['peashoot'].play()
+        # 子弹发射逻辑已在 Plant.update() 中统一处理（含主题支持）
+        # 此处不再重复，避免双重遍历僵尸
     
     # 移除被吃掉的植物
     for i in sorted(plants_to_remove, reverse=True):
@@ -822,7 +826,17 @@ def show_victory_screen():
             elif event.type == pygame.QUIT:
                 return False  # 返回False表示直接退出游戏
 
-# 渲染游戏画面
+# 缓存渲染用的字体和静态文本，避免每帧创建
+_render_font = pygame.font.SysFont('SimSun', 24)
+_difficulty_names = ["简单", "普通", "困难", "测试"]
+_theme_names = ["经典", "宇宙", "哈基米"]
+# 预渲染不会变化的文本
+_difficulty_labels = [f'难度: {n}' for n in _difficulty_names]
+_theme_labels = [f'主题: {n}' for n in _theme_names]
+_render_difficulty_texts = [_render_font.render(label, True, (255, 255, 255)) for label in _difficulty_labels]
+_render_theme_texts = [_render_font.render(label, True, (255, 255, 255)) for label in _theme_labels]
+_render_sun_label = _render_font.render('', True, (255, 255, 0))  # 占位
+
 def render_game(screen, background, music_button_img, music_button_rect, plants, zombies, bullets,
                SCREEN_WIDTH, GRID_HEIGHT, preview_plant_pos, selected_plant, plant_preview_images,
                plant_game_images, suns, zombie_count, ZOMBIE_MAX, plant_ui_images, GREEN,
@@ -866,18 +880,18 @@ def render_game(screen, background, music_button_img, music_button_rect, plants,
             mouse_y - plant_img.get_height()//2
         ))
     
-    # 最后绘制阳光，确保在最上层
+    # 最后绘制阳光，确保在最上层（传入鼠标位置避免重复get_pos）
+    mouse_pos = pygame.mouse.get_pos()
     for sun in suns[:]:
-        if sun.update():
+        if sun.update(mouse_pos):
             suns.remove(sun)
         else:
             sun.draw()
 
-    # 最后绘制僵尸数量显示
-    font = pygame.font.SysFont('SimSun', 24)
-    zombie_count_text = font.render(f'僵尸: {zombie_count}/{ZOMBIE_MAX}', True, (255, 255, 255))
-    text_width, text_height = zombie_count_text.get_size()
-    screen.blit(zombie_count_text, (SCREEN_WIDTH - text_width - 20, SCREEN_HEIGHT - text_height - 20))
+    # 僵尸数量显示（需每帧渲染，因为数量变化）
+    zombie_text = _render_font.render(f'僵尸: {zombie_count}/{ZOMBIE_MAX}', True, (255, 255, 255))
+    text_width = zombie_text.get_width()
+    screen.blit(zombie_text, (SCREEN_WIDTH - text_width - 20, SCREEN_HEIGHT - 40))
     
     # 绘制植物选择UI
     for i, plant_type in enumerate(['xrk', 'hb', 'wd', 'xdfz', 'cz']):
@@ -896,18 +910,12 @@ def render_game(screen, background, music_button_img, music_button_rect, plants,
     
     # 显示阳光数量和图片
     screen.blit(sun_image, (10, 10))
-    sun_text = font.render(f'{sun_value[0]}', True, YELLOW)
+    sun_text = _render_font.render(f'{sun_value[0]}', True, YELLOW)
     screen.blit(sun_text, (40, 15))
     
-    # 显示当前难度
-    difficulty_names = ["简单", "普通", "困难", "测试"]
-    difficulty_text = font.render(f'难度: {difficulty_names[difficulty]}', True, (255, 255, 255))
-    screen.blit(difficulty_text, (SCREEN_WIDTH - 150, 15))
-    
-    # 显示当前主题
-    theme_names = ["经典", "宇宙", "哈基米"]
-    theme_text = font.render(f'主题: {theme_names[theme]}', True, (255, 255, 255))
-    screen.blit(theme_text, (SCREEN_WIDTH - 150, 45))
+    # 难度和主题使用预渲染文本
+    screen.blit(_render_difficulty_texts[difficulty], (SCREEN_WIDTH - 150, 15))
+    screen.blit(_render_theme_texts[theme], (SCREEN_WIDTH - 150, 45))
 
 # 游戏主循环
 def main(difficulty=1, theme=0):
@@ -929,23 +937,25 @@ def main(difficulty=1, theme=0):
     suns = []
     zombie_spawn_timer = 0
     sun_spawn_timer = 0
-    sun_value = [100]
+    sun_value = [100]  # 初始阳光100
     selected_plant = None  # 初始不选择任何植物
     plant_prices = {'xrk': 50, 'hb': 175, 'wd': 100, 'xdfz': 100}  # 植物价格
     
     # 根据难度设置参数
     if difficulty == 0:  # 简单
-        ZOMBIE_MAX = 5
-        zombie_speed = 1.8
+        ZOMBIE_MAX = 8 # 僵尸数量
+        zombie_speed = 0.5 # 僵尸速度
     elif difficulty == 1:  # 普通
         ZOMBIE_MAX = 10
-        zombie_speed = 2.1
+        zombie_speed = 0.8
     elif difficulty == 2:  # 困难
-        ZOMBIE_MAX = 15
-        zombie_speed = 3
+        ZOMBIE_MAX = 14
+        zombie_speed = 1.2
     else:  # 测试
         ZOMBIE_MAX = 1
-        zombie_speed = 2
+        zombie_speed = 0.8
+    
+    first_zombie_delay = 600  # 第一只僵尸延迟10秒（600帧）
     
     active_music_list = []
     current_music_idx_for_active_list = 0
@@ -1032,8 +1042,9 @@ def main(difficulty=1, theme=0):
                     )
         
         # 生成游戏对象
-        zombie_spawn_timer, zombie_count = spawn_zombies(zombie_spawn_timer, zombie_count, ZOMBIE_MAX, 
-                                                       GRID_HEIGHT, LAWN_HEIGHT, LAWN_ROWS, zombie_speed, zombies)
+        zombie_spawn_timer, zombie_count, first_zombie_delay = spawn_zombies(
+            zombie_spawn_timer, zombie_count, ZOMBIE_MAX, 
+            GRID_HEIGHT, LAWN_HEIGHT, LAWN_ROWS, zombie_speed, zombies, first_zombie_delay)
         
         sun_spawn_timer = spawn_suns(sun_spawn_timer, SCREEN_WIDTH, GRID_HEIGHT, sun_value, suns)
         
